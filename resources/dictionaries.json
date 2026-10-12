@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "checkedAt": "2026-10-12",
+  "source": {
+    "id": "wiktionary-zh",
+    "name": "Wiktionary · 中文版 / Kaikki",
+    "url": "https://kaikki.org/dictionary/downloads/zh/zh-extract.jsonl.gz",
+    "homepage": "https://kaikki.org/dictionary/rawdata.html",
+    "format": "wiktextract-jsonl-gzip",
+    "downloadBytesEstimate": 234461594,
+    "license": "CC BY-SA / GFDL（维基词典数据许可）",
+    "licenseUrl": "https://kaikki.org/dictionary/#copyright-and-license",
+    "attribution": "Wiktionary contributors; extracted by Tatu Ylönen / Wiktextract; distributed by Kaikki.org."
+  },
+  "dictionaries": [
+    { "id": "wiktionary-es-zh", "languageCode": "es", "name": "西班牙语 → 中文", "languageName": "西班牙语", "example": "hola" },
+    { "id": "wiktionary-ja-zh", "languageCode": "ja", "name": "日语 → 中文", "languageName": "日语", "example": "猫" },
+    { "id": "wiktionary-ko-zh", "languageCode": "ko", "name": "韩语 → 中文", "languageName": "韩语", "example": "사랑" },
+    { "id": "wiktionary-fr-zh", "languageCode": "fr", "name": "法语 → 中文", "languageName": "法语", "example": "bonjour" }
+  ]
+}

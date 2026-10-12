@@ -1,0 +1,91 @@
+import { _electron as electron } from 'playwright';
+import assert from 'node:assert/strict';
+import path from 'node:path';
+import { mkdir, writeFile } from 'node:fs/promises';
+
+const root = process.cwd();
+const env = { ...process.env, BESTDICT_TEST: '1', BESTDICT_TEST_SHORTCUT: 'Control+Alt+Shift+F11',
+  BESTDICT_LIBRARY: path.join(root, '.cache/validation-library') };
+delete env.ELECTRON_RUN_AS_NODE;
+const executablePath = process.env.BESTDICT_TEST_EXE;
+const desktop = await electron.launch({ executablePath, args: [...(executablePath ? [] : ['.']), '--force-device-scale-factor=1'], env, cwd: root, timeout: 30000 });
+const captures = path.join(root, 'test-results');
+await mkdir(captures, { recursive: true });
+try {
+  const page = await desktop.firstWindow();
+  const errors = [];
+  page.on('pageerror', e => errors.push(e.message));
+  await page.getByText('离线资源已就绪').waitFor();
+  const input = page.getByRole('textbox', { name: '输入单词或句子' });
+  assert.equal(await page.evaluate(() => window.bestdict.getSettings().then(s => s.translationEngine)), 'none');
+  const resources = await page.evaluate(() => window.bestdict.getResources());
+  assert.equal(resources.argos.ready, true);
+  assert.equal(resources.hy.ready, true);
+  await assert.rejects(page.evaluate(() => window.bestdict.translate('Hello.', 'en-zh', 1)), /尚未开启/);
+  await page.getByRole('button', { name: '设置', exact: true }).click();
+  await page.getByRole('tab', { name: '翻译引擎', exact: true }).click();
+  await page.getByRole('button', { name: /Argos Translate/ }).click();
+  await page.getByRole('button', { name: '保存设置', exact: true }).click();
+  await page.getByRole('button', { name: '翻译', exact: true }).click();
+  await input.fill('Please send me the report before Friday.');
+  await page.getByTestId('translation-result').waitFor({ timeout: 60000 });
+  assert.match(await page.getByTestId('translation-result').innerText(), /报告/);
+  const clipboardBefore = await desktop.evaluate(({ clipboard }) => clipboard.readText());
+  await page.getByRole('button', { name: '复制译文', exact: true }).click();
+  assert.match(await desktop.evaluate(({ clipboard }) => clipboard.readText()), /报告/);
+  await desktop.evaluate(({ clipboard }, previous) => clipboard.writeText(previous), clipboardBefore);
+  await input.fill('今天天气很好，我们一起去公园散步吧。');
+  await page.waitForFunction(() => document.querySelector('[data-testid="translation-result"]')?.textContent?.toLowerCase().includes('park'), { timeout: 60000 });
+  await page.getByRole('button', { name: '查词', exact: true }).click();
+  await page.getByRole('button', { name: '设置', exact: true }).click();
+  await page.getByRole('tab', { name: '词库', exact: true }).click();
+  await page.screenshot({ path: path.join(captures, 'dictionaries.png') });
+  await page.getByTestId('dictionary-wiktionary-es-zh').getByRole('button', { name: '选择词库', exact: true }).click();
+  await page.getByRole('button', { name: '保存设置', exact: true }).click();
+  const cases = [['es', 'hola', /你好/], ['ja', '猫', /[猫貓]/], ['ko', '사랑', /[爱愛]/], ['fr', 'bonjour', /你好|早安/]];
+  for (const [code, word, gloss] of cases) {
+    if (code !== 'es') {
+      await page.getByRole('combobox', { name: '选择当前词库' }).selectOption(`wiktionary-${code}-zh`);
+    }
+    await input.fill(word);
+    await page.getByTestId('entry-word').filter({ hasText: word }).waitFor();
+    assert.match(await page.locator('.definition-list').innerText(), gloss);
+    if (code === 'ja') await page.screenshot({ path: path.join(captures, 'japanese.png') });
+  }
+  await page.getByRole('button', { name: '设置', exact: true }).click();
+  await page.getByRole('tab', { name: '翻译引擎', exact: true }).click();
+  await page.getByRole('button', { name: /HY-MT1.5 · 1.8B/ }).click();
+  await page.screenshot({ path: path.join(captures, 'engines.png') });
+  await page.getByRole('button', { name: '保存设置', exact: true }).click();
+  await page.getByRole('button', { name: '翻译', exact: true }).click();
+  await page.getByRole('combobox', { name: '翻译方向' }).selectOption('fr-zh');
+  await input.fill('Bonjour, comment allez-vous ?');
+  await page.getByTestId('translation-result').waitFor({ timeout: 60000 });
+  assert.match(await page.getByTestId('translation-result').innerText(), /你好|您好/);
+  await page.screenshot({ path: path.join(captures, 'hy-translation.png') });
+  await page.getByRole('button', { name: '设置', exact: true }).click();
+  await page.getByRole('tab', { name: '通用', exact: true }).click();
+  await page.getByRole('button', { name: '深色', exact: true }).click();
+  await page.getByRole('tab', { name: '词库', exact: true }).click();
+  await page.getByTestId('dictionary-ecdict').getByRole('button', { name: '选择词库', exact: true }).click();
+  await page.getByRole('button', { name: '保存设置', exact: true }).click();
+  await page.getByRole('button', { name: '查词', exact: true }).click();
+  await input.fill('serendipity');
+  await page.getByTestId('entry-word').filter({ hasText: 'serendipity' }).waitFor();
+  await page.waitForTimeout(250);
+  assert.equal(await page.evaluate(() => getComputedStyle(document.body).backgroundColor), 'rgb(32, 32, 32)');
+  assert.equal(await page.getByRole('alert').count(), 0, 'Resource status checks must not be cancelled by typing.');
+  await page.screenshot({ path: path.join(captures, 'dark-dictionary.png') });
+  await page.getByRole('button', { name: '设置', exact: true }).click();
+  await page.getByRole('tab', { name: '翻译引擎', exact: true }).click();
+  await page.getByRole('button', { name: /仅查词/ }).click();
+  await page.getByRole('button', { name: '保存设置', exact: true }).click();
+  await page.getByRole('button', { name: '翻译', exact: true }).click();
+  await page.getByTestId('translation-disabled').waitFor();
+  await assert.rejects(page.evaluate(() => window.bestdict.translate('Hello.', 'en-zh', 999)), /尚未开启/);
+  assert.equal(await page.evaluate(() => window.bestdict.getResources().then(r => r.argos.ready && r.hy.ready)), true);
+  assert.deepEqual(errors, []);
+  const result = { passed: true, packaged: !!executablePath, checks: ['installed models stay disabled by default', 'explicit Argos enable', 'real Argos both directions', 'clipboard', 'four real dictionary switches', 'Chinese glosses', 'explicit HY enable', 'real HY translation through UI', 'disable blocks UI and IPC', 'disable retains downloads', 'neutral dark theme', 'no renderer errors'] };
+  await writeFile(path.join(captures, executablePath ? 'packaged-multilingual.json' : 'multilingual.json'), JSON.stringify(result, null, 2));
+  console.log(JSON.stringify(result));
+} finally { await desktop.close(); }

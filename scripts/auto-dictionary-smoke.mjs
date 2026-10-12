@@ -1,0 +1,58 @@
+import { _electron as electron } from 'playwright';
+import assert from 'node:assert/strict';
+import path from 'node:path';
+import { writeFile } from 'node:fs/promises';
+const env = { ...process.env, BESTDICT_TEST: '1', BESTDICT_TEST_SHORTCUT: 'Control+Alt+Shift+F11', BESTDICT_LIBRARY: path.resolve('.cache/validation-library') };
+delete env.ELECTRON_RUN_AS_NODE;
+const executablePath = process.env.BESTDICT_TEST_EXE;
+const desktop = await electron.launch({ executablePath, args: executablePath ? [] : ['.'], env });
+try {
+  const page = await desktop.firstWindow();
+  const errors = [];
+  page.on('pageerror', error => errors.push(error.message));
+  await page.getByText('离线资源已就绪').waitFor();
+  const input = page.getByRole('textbox', { name: '输入单词或句子' });
+  const picker = page.getByRole('combobox', { name: '选择当前词库' });
+  const auto = page.getByRole('checkbox', { name: '自动匹配语言和词库' });
+  assert.equal(await auto.isChecked(), true);
+  for (const [word, gloss, language] of [['perro', /狗/, '西班牙语'], ['사랑', /爱|愛/, '韩语'], ['猫', /貓|猫/, '日语'], ['hello', /喂/, '英语']]) {
+    await input.fill(word);
+    await page.getByTestId('entry-word').filter({ hasText: word }).waitFor();
+    assert.match(await page.locator('.definition-list').innerText(), gloss);
+    assert.ok((await page.locator('.candidate.chosen').innerText()).includes(language), word + ': ' + await page.locator('.candidate.chosen').innerText());
+    assert.equal(await picker.inputValue(), 'ecdict');
+  }
+  await input.fill('bonjour');
+  await page.getByTestId('entry-word').filter({ hasText: /^bonjour$/i }).waitFor();
+  const french = page.locator('.candidate').filter({ hasText: '法语' }).first();
+  await french.click();
+  assert.match(await page.locator('.definition-list').innerText(), /你好|早安/);
+  await picker.selectOption('wiktionary-fr-zh');
+  await page.waitForFunction(() => document.querySelector('.entry-panel .eyebrow')?.textContent?.includes('法语'));
+  await auto.uncheck();
+  await picker.selectOption('ecdict');
+  await input.fill('perro');
+  await page.waitForTimeout(500);
+  const manual = await page.evaluate(() => window.bestdict.lookup('perro'));
+  assert.ok(manual.entries.every(e => e.dictionaryId === 'ecdict'));
+  await picker.selectOption('wiktionary-es-zh');
+  await page.getByTestId('entry-word').filter({ hasText: /^perro$/ }).waitFor();
+  assert.match(await page.locator('.definition-list').innerText(), /狗/);
+  assert.equal(await page.getByRole('dialog').count(), 0);
+  const saved = await desktop.evaluate(() => globalThis.__bestdictNative.readSettings());
+  assert.equal(saved.autoDictionary, false);
+  assert.equal(saved.dictionaryId, 'wiktionary-es-zh');
+  await auto.check();
+  await picker.selectOption('ecdict');
+  await input.fill('perro');
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: 'test-results/auto-dictionary.png' });
+  await page.reload();
+  assert.equal(await auto.isChecked(), true);
+  await input.fill('perro');
+  await page.getByTestId('entry-word').filter({ hasText: /^perro$/ }).waitFor();
+  assert.deepEqual(errors, []);
+  const result = { passed: true, packaged: !!executablePath, checks: ['four automatic languages plus ambiguous French', 'perro Spanish definition', 'ambiguous bonjour retains French match', 'manual selection wins ties', 'unchecked stays in selected dictionary', 'direct dropdown without settings', 'settings persisted', 'reload restores automatic matching'] };
+  await writeFile('test-results/auto-dictionary.json', JSON.stringify(result, null, 2));
+  console.log(JSON.stringify(result));
+} finally { await desktop.close(); }

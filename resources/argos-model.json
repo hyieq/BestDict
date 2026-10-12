@@ -1,0 +1,12 @@
+{
+  "id": "argos",
+  "name": "Argos Translate",
+  "bytes": 145224423,
+  "homepage": "https://github.com/argosopentech/argos-translate",
+  "license": "OPUS-MT · CC BY 4.0",
+  "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+  "packages": [
+    { "pair": "en_zh", "filename": "en_zh.argosmodel", "url": "https://argos-net.com/v1/translate-en_zh-1_9.argosmodel", "bytes": 70743021, "sha256": "433e7c4f034d87fbe2353161e05f18646d7999452f801a4e1f0378522b9850ab" },
+    { "pair": "zh_en", "filename": "zh_en.argosmodel", "url": "https://argos-net.com/v1/translate-zh_en-1_9.argosmodel", "bytes": 74481402, "sha256": "62e7af5a3a48b530e47b7b3e5c78c2de79073ecd815750d2bf3ab35b4a67da2d" }
+  ]
+}

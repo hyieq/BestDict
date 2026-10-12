@@ -1,0 +1,12 @@
+node_modules/
+dist/
+release/
+runtime/
+.venv/
+.cache/
+resources/dictionary.db
+resources/models/
+resources/asset-manifest.json
+__pycache__/
+test-results/
+*.log

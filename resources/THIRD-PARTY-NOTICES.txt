@@ -1,0 +1,67 @@
+BestDict includes the following dictionary and runtimes; translation models are optional downloads.
+
+ECDICT
+https://github.com/skywind3000/ECDICT
+MIT license. Copyright information and full terms: ECDICT-LICENSE.txt.
+Source data converted to a SQLite index; definitions are retained.
+
+Argos English-Chinese / Chinese-English models, version 1.9
+https://github.com/argosopentech/argospm-index
+https://www.argosopentech.com/
+Original OPUS-MT model authors: Jörg Tiedemann and Santhosh Thottingal.
+"OPUS-MT — Building open translation services for the World", EAMT 2020,
+Lisbon, Portugal.
+Original OPUS models are licensed under Creative Commons Attribution 4.0:
+https://creativecommons.org/licenses/by/4.0/
+These model weights are NOT bundled or automatically downloaded.
+After explicit installation, CPU int8 inference is selected at runtime.
+Upstream attribution files are preserved in the user library under
+argos/models/en_zh/README.md and argos/models/zh_en/README.md.
+
+CTranslate2
+https://github.com/OpenNMT/CTranslate2
+MIT license; license files are in python/Lib/site-packages/ctranslate2-*.dist-info.
+
+SentencePiece
+https://github.com/google/sentencepiece
+Apache License 2.0; license files are in python/Lib/site-packages/sentencepiece-*.dist-info.
+
+Python 3.12 Windows embeddable distribution
+https://www.python.org/
+Python Software Foundation license, included in python/LICENSE.txt.
+
+Microsoft Visual C++ Runtime
+Copyright Microsoft Corporation. App-local x64 redistributable DLLs are
+included under the Microsoft Visual Studio distributable-code terms.
+https://learn.microsoft.com/en-us/cpp/windows/redistributing-visual-cpp-files
+
+Electron / Chromium
+https://www.electronjs.org/
+Electron MIT license and Chromium notices are included in LICENSE.electron.txt
+and LICENSES.chromium.html in the application directory.
+
+React, React DOM, Lucide
+https://github.com/facebook/react (MIT)
+https://github.com/lucide-icons/lucide (ISC)
+Licenses are copied to this assets directory by scripts/copy_licenses.py.
+
+Optional Wiktionary dictionaries: Spanish, Japanese, Korean, French
+Source: https://kaikki.org/dictionary/rawdata.html (Chinese edition)
+Wiktionary contributors; extracted using Wiktextract by Tatu Ylönen / Kaikki.org.
+These optional dictionary files are NOT bundled or automatically downloaded.
+They retain the Wiktionary CC-BY-SA / GFDL data licenses and attribution.
+Catalog details: dictionaries.json; installed resources contain ATTRIBUTION.txt.
+https://kaikki.org/dictionary/#copyright-and-license
+
+HY-MT1.5-1.8B (optional official Q4_K_M GGUF model)
+Copyright Tencent. Tencent HY Community License Agreement, NOT the app's MIT license.
+https://huggingface.co/tencent/HY-MT1.5-1.8B
+https://huggingface.co/tencent/HY-MT1.5-1.8B-GGUF
+Full model terms are preserved in licenses/HY-MT-LICENSE.txt.
+The model weights are NOT bundled or automatically downloaded.
+Built with Tencent Hunyuan.
+
+llama.cpp (CPU inference runner, b11429)
+https://github.com/ggml-org/llama.cpp
+MIT license; full notice: licenses/llama-cpp-LICENSE.txt.
+Official Windows CPU binary, distributed without code modifications.
