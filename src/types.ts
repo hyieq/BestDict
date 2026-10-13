@@ -28,6 +28,8 @@ export interface ResourceCatalog {
   progress: ResourceProgress | null;
 }
 export interface DesktopAPI {
+  getAppearance(): Promise<{ material: 'acrylic' | 'fallback' | 'solid'; dark: boolean; reducedTransparency: boolean }>;
+  onAppearance(callback: (appearance: { material: 'acrylic' | 'fallback' | 'solid'; dark: boolean; reducedTransparency: boolean }) => void): () => void;
   lookup(text: string): Promise<LookupResult>;
   translate(text: string, direction: Direction, requestId: number): Promise<Translation>;
   translateAI(text: string, direction: Direction, requestId: number, options?: AIOptions): Promise<Translation>;

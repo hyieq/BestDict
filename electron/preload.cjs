@@ -1,6 +1,12 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('bestdict', {
+  getAppearance: () => ipcRenderer.invoke('window:appearance'),
+  onAppearance: callback => {
+    const listener = (_event, data) => callback(data);
+    ipcRenderer.on('window:appearance', listener);
+    return () => ipcRenderer.removeListener('window:appearance', listener);
+  },
   lookup: text => ipcRenderer.invoke('dictionary:lookup', text),
   translate: (text, direction, requestId) => ipcRenderer.invoke('translation:run', { text, direction, requestId }),
   translateAI: (text, direction, requestId, options) => ipcRenderer.invoke('translation:ai', { text, direction, requestId, options }),

@@ -4,7 +4,7 @@
   <p><strong>专注本地AI查词翻译<br/>纯净、无广告、无订阅</strong></p>
   <p>A quiet, offline-first desktop dictionary & translator.</p>
   <p>
-    <img src="https://img.shields.io/badge/version-0.4.9-0067b8" alt="Version 0.4.9" />
+    <img src="https://img.shields.io/badge/version-0.4.10-0067b8" alt="Version 0.4.10" />
     <img src="https://img.shields.io/badge/platform-Windows_x64-0078d4" alt="Windows x64" />
     <img src="https://img.shields.io/badge/Electron-React_·_TypeScript-47848f" alt="Electron, React and TypeScript" />
     <a href="LICENSE"><img src="https://img.shields.io/badge/code_license-MIT-3d8558" alt="Code license: MIT" /></a>
@@ -24,6 +24,7 @@ BestDict 是一款 Windows x64 离线词典与翻译软件。按下 `Ctrl + Shif
 - **风格与润色**：基本、专业、口语化、简短四种预设，可编辑提示词和新增风格；译文支持自定义润色与刷新。
 - **扩展词库**：按需安装西班牙语、日语、韩语、法语的中文释义词库，支持自动匹配已安装词库。
 - **桌面常驻**：全局快捷键、托盘、自启动、浅深色主题和中英文界面。
+- **毛玻璃界面**：冰蓝浅色与深海深色主题，Windows 11 22H2 及以上使用原生 Acrylic；其他系统保留应用内玻璃层次，并支持减少透明效果和动画。
 
 <a id="screenshots"></a>
 ## 界面预览
@@ -120,8 +121,8 @@ npm.cmd run package
 提交并推送代码，再创建与版本一致的标签，例如：
 
 ```powershell
-git tag -a v0.4.9 -m "BestDict v0.4.9"
-git push origin v0.4.9
+git tag -a v0.4.10 -m "BestDict v0.4.10"
+git push origin v0.4.10
 ```
 
 在 GitHub 的 **Actions → Release** 查看构建进度；完成后可在 **Releases** 下载。
@@ -150,7 +151,7 @@ npm.cmd run package
 如果 Windows 占用了上次的打包目录，可指定独立输出目录再打包：
 
 ```powershell
-$env:BESTDICT_RELEASE_DIR = "$PWD\release\v0.4.9"
+$env:BESTDICT_RELEASE_DIR = "$PWD\release\v0.4.10"
 npm.cmd run package
 Remove-Item Env:BESTDICT_RELEASE_DIR
 ```

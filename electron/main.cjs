@@ -1,4 +1,5 @@
-const { app, BrowserWindow, Tray, Menu, globalShortcut, ipcMain, nativeImage, clipboard, screen, session, protocol, net, dialog, shell } = require('electron');
+const { app, BrowserWindow, Tray, Menu, globalShortcut, ipcMain, nativeImage, nativeTheme, clipboard, screen, session, protocol, net, dialog, shell } = require('electron');
+const os = require('node:os');
 const fs = require('node:fs');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
@@ -17,6 +18,22 @@ let quitting = false;
 let settings;
 let shortcutError = '';
 let settingsPath;
+const supportsBackdrop = process.platform === 'win32' && Number(os.release().split('.')[2]) >= 22621;
+let appearance = { material: 'fallback', dark: false, reducedTransparency: false };
+
+function updateWindowAppearance() {
+  if (!window || window.isDestroyed()) return;
+  const dark = nativeTheme.shouldUseDarkColors;
+  const reducedTransparency = nativeTheme.prefersReducedTransparency || nativeTheme.shouldUseHighContrastColors;
+  let material = supportsBackdrop && !reducedTransparency ? 'acrylic' : reducedTransparency ? 'solid' : 'fallback';
+  if (supportsBackdrop) {
+    try { window.setBackgroundMaterial(material === 'acrylic' ? 'acrylic' : 'none'); }
+    catch { material = reducedTransparency ? 'solid' : 'fallback'; }
+  }
+  window.setBackgroundColor(material === 'acrylic' ? '#00000000' : dark ? '#101b2c' : '#e9f1fb');
+  appearance = { material, dark, reducedTransparency };
+  window.webContents.send('window:appearance', appearance);
+}
 const defaults = { aiStylesVersion: 0, aiStyles: defaultStyles, aiStyleId: 'basic', startup: true, shortcut: testing ? (process.env.BESTDICT_TEST_SHORTCUT || 'Control+Shift+D') : 'Control+Shift+D', theme: 'system', locale: 'zh-CN', trayHintSeen: false, bounds: null, dictionaryId: 'ecdict', autoDictionary: true, translationEngine: 'none' };
 const root = app.isPackaged ? process.resourcesPath : path.join(__dirname, '..');
 const assets = app.isPackaged ? path.join(root, 'assets') : path.join(root, 'resources');
@@ -37,6 +54,7 @@ function loadSettings() {
   if (!settings.aiStyles.some(s => s.id === settings.aiStyleId)) settings.aiStyleId = settings.aiStyles[0].id;
   if (testing) settings = { ...defaults };
   if (!['zh-CN', 'en'].includes(settings.locale)) settings.locale = 'zh-CN';
+  if (!['light', 'dark', 'system'].includes(settings.theme)) settings.theme = 'system';
 }
 
 function nativeText(message) { return settings.locale === 'en' ? english[message] || message : message; }
@@ -122,6 +140,7 @@ function rememberBounds() {
 }
 
 function setupIPC() {
+  handle('window:appearance', () => appearance);
   handle('dictionary:lookup', async text => {
     validateText(text, 100);
     const preferred = settings.dictionaryId;
@@ -198,6 +217,10 @@ function setupIPC() {
     }
     if (next.translationEngine !== settings.translationEngine) translator.stop();
     saveSettings(next);
+    if ('theme' in changes) {
+      nativeTheme.themeSource = settings.theme;
+      updateWindowAppearance();
+    }
     updateTray();
     return publicSettings();
   });
@@ -259,6 +282,7 @@ else {
   app.on('second-instance', reveal);
   app.whenReady().then(async () => {
     loadSettings();
+    nativeTheme.themeSource = ['light', 'dark', 'system'].includes(settings.theme) ? settings.theme : 'system';
     if (process.platform === 'win32') app.setAppUserModelId('com.bestdict.desktop');
     const python = app.isPackaged ? path.join(root, 'python', process.platform === 'win32' ? 'python.exe' : 'bin/python3') :
       (process.env.BESTDICT_PYTHON || path.join(root, 'runtime', 'python', process.platform === 'win32' ? 'python.exe' : 'bin/python3'));
@@ -284,10 +308,12 @@ else {
     session.defaultSession.setPermissionRequestHandler((_webContents, _permission, callback) => callback(false));
     window = new BrowserWindow({
       ...windowBounds(), minWidth: 780, minHeight: 580, frame: false, show: false, title: 'BestDict',
-      backgroundColor: '#fcfcfa', icon: path.join(assets, process.platform === 'win32' ? 'icon.ico' : 'icon.png'),
+      backgroundColor: nativeTheme.shouldUseDarkColors ? '#101b2c' : '#e9f1fb', icon: path.join(assets, process.platform === 'win32' ? 'icon.ico' : 'icon.png'),
       webPreferences: { preload: path.join(__dirname, 'preload.cjs'), nodeIntegration: false, contextIsolation: true, sandbox: true },
     });
     window.setMenu(null);
+    updateWindowAppearance();
+    nativeTheme.on('updated', updateWindowAppearance);
     window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
     window.webContents.on('will-navigate', event => event.preventDefault());
     window.on('close', event => { if (!quitting) { event.preventDefault(); hideToTray(); } });

@@ -74,6 +74,19 @@ export default function App() {
   useEffect(() => { document.documentElement.lang = settings?.locale || 'zh-CN'; }, [settings?.locale]);
 
   useEffect(() => {
+    if (!api) return;
+    let active = true;
+    const update = (appearance: Awaited<ReturnType<typeof api.getAppearance>>) => {
+      if (active) document.documentElement.dataset.material = appearance.material;
+    };
+    const unsubscribe = api.onAppearance(update);
+    void api.getAppearance().then(update).catch(() => {
+      if (active) document.documentElement.dataset.material = 'fallback';
+    });
+    return () => { active = false; unsubscribe(); };
+  }, []);
+
+  useEffect(() => {
     if (!api) { setError(t("请通过 BestDict 桌面客户端打开。")); return; }
     refreshStatus();
     void api.getSettings().then(setSettings).catch(e => setError(errorText(e)));
@@ -239,8 +252,9 @@ export default function App() {
       </header>
       <section className="workspace">
         <div className="search-row">
-        <div className="search-box">
-          <textarea ref={input} aria-label={t("输入单词或句子")} placeholder={sentenceEnabled ? t("输入单词、词组，或粘贴一整句话…") : t("输入单词或词组，即时查词…")} value={query} maxLength={5000} rows={2}
+        <div className={`search-box ${mode === 'translate' || query.includes('\n') || query.length > 60 ? 'multiline' : ''}`}>
+          <Search size={21} className="search-leading-icon" aria-hidden="true" />
+          <textarea ref={input} aria-label={t("输入单词或句子")} placeholder={sentenceEnabled ? t("输入单词、词组，或粘贴一整句话…") : t("输入单词或词组，即时查词…")} value={query} maxLength={5000} rows={1}
             onChange={e => changeQuery(e.target.value)}
             onCompositionStart={() => { invalidate(); setComposing(true); }}
             onCompositionEnd={() => setComposing(false)} spellCheck={false} />
@@ -293,7 +307,7 @@ export default function App() {
                 <strong>{entry.word}{settings?.autoDictionary && <small className="candidate-language">{t(catalog?.dictionaries.find(item => item.id === entry.dictionaryId)?.languageName || '英语')}</small>}</strong><span>{entry.translation.split('\n')[0]}</span>{index === selected && <ArrowRight size={13} className="candidate-arrow" />}</button>)}</div>
               <div className="candidate-hint"><ArrowDown size={12} />{t("上下选择")}<span>{t("↵ 确认")}</span></div>
             </aside>
-            <article className="entry-panel">
+            <article className="entry-panel" key={`${currentEntry?.dictionaryId}-${currentEntry?.id}`}>
               {currentEntry ? <>
                 <div className="panel-heading"><span className="eyebrow">{resultDictionary?.id !== 'ecdict' ? t(resultDictionary?.name || '中文释义') : /[\u3400-\u9fff]/.test(query) ? t("汉英词条") : t("英汉词条")}</span><button className="icon-button" title={t("复制释义")} aria-label={t("复制释义")} onClick={copyResult}>{copied ? <Check size={16} /> : <Copy size={16} />}</button></div>
                 <h2 className="entry-word" data-testid="entry-word">{currentEntry.word}</h2>
