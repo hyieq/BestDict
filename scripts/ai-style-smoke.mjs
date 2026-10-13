@@ -21,10 +21,18 @@ try {
     };
   });
   await page.reload();
-  const style = page.getByRole('combobox', { name: '翻译风格', exact: true });
-  await style.selectOption('professional');
+  const style = page.getByRole('button', { name: '翻译风格', exact: true });
+  async function selectStyle(id) {
+    await style.click();
+    if (id === '__manage') await page.getByRole('menuitem', { name: '管理翻译风格…' }).click();
+    else {
+      const name = await page.evaluate(id => window.bestdict.getSettings().then(s => s.aiStyles.find(style => style.id === id).name), id);
+      await page.getByRole('menuitemradio', { name, exact: true }).click();
+    }
+  }
+  await selectStyle('professional');
   await page.waitForFunction(() => window.bestdict.getSettings().then(s => s.aiStyleId === 'professional'));
-  await style.selectOption('__manage');
+  await selectStyle('__manage');
   const dialog = page.getByRole('dialog', { name: '管理翻译风格', exact: true });
   await dialog.getByRole('button', { name: '新增风格' }).click();
   await dialog.getByRole('textbox', { name: '风格名称 5', exact: true }).fill('新闻');
@@ -33,10 +41,10 @@ try {
   await dialog.waitFor({ state: 'hidden' });
   const saved = await page.evaluate(() => window.bestdict.getSettings());
   assert.equal(saved.aiStyles.length, 5);
-  await style.selectOption(saved.aiStyles[4].id);
+  await selectStyle(saved.aiStyles[4].id);
   await page.waitForFunction(id => window.bestdict.getSettings().then(s => s.aiStyleId === id), saved.aiStyles[4].id);
   await page.reload();
-  await page.waitForFunction(id => document.querySelector('.ai-style-select')?.value === id, saved.aiStyles[4].id);
+  await page.waitForFunction(() => document.querySelector('.ai-style-select')?.textContent.includes('新闻'));
   await page.getByRole('textbox', { name: '输入单词或句子' }).fill('Please send me the report before Friday.');
   await page.getByRole('button', { name: 'AI 翻译', exact: true }).click();
   await page.getByTestId('ai-translation-result').waitFor();
@@ -49,8 +57,8 @@ try {
   assert.equal(calls[1].text, calls[0].text);
   await mkdir('test-results', { recursive: true });
   await page.screenshot({ path: path.resolve('test-results/ai-styles.png') });
-  await style.selectOption('professional');
-  await page.waitForFunction(() => document.querySelector('.ai-style-select')?.value === 'professional');
+  await selectStyle('professional');
+  await page.waitForFunction(() => document.querySelector('.ai-style-select')?.textContent.includes('专业'));
   await page.getByTestId('ai-translation-result').filter({ hasText: '星期五' }).waitFor();
   const changed = await desktop.evaluate(() => globalThis.__aiCalls.at(-1));
   assert.equal(changed.options.styleName, '专业');
@@ -64,7 +72,7 @@ try {
   await page.evaluate(() => window.bestdict.setSettings({ theme: 'dark' }));
   await page.reload();
   await page.locator('html[data-theme="dark"]').waitFor();
-  await style.selectOption('__manage');
+  await selectStyle('__manage');
   await dialog.waitFor();
   await page.screenshot({ path: path.resolve('test-results/ai-style-manager.png') });
   await page.keyboard.press('Escape');

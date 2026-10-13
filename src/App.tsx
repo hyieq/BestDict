@@ -21,6 +21,7 @@ function prettyShortcut(value: string) { return value.replace(/Control/g, 'Ctrl'
 export default function App() {
   const [query, setQuery] = useState('');
   const [mode, setMode] = useState<Mode>('auto');
+  const [forcedQuery, setForcedQuery] = useState<string | null>(null);
   const [direction, setDirection] = useState<Direction>('auto');
   const [lookup, setLookup] = useState<LookupResult>(emptyLookup);
   const [selected, setSelected] = useState(0);
@@ -97,16 +98,28 @@ export default function App() {
 
   function changeQuery(value: string) {
     invalidate();
+    immediateRun.current = false;
+    setForcedQuery(null);
+    if (!value.trim()) setMode('auto');
+    if (!value.trim() || mode !== 'translate') setResolvedMode('dictionary');
     setQuery(value);
     setSelected(0);
     setExpanded(false);
   }
 
   function translateNow() {
+    if (!query.trim()) return;
     invalidate();
     immediateRun.current = true;
-    setMode('translate');
+    setForcedQuery(query);
     setRunNonce(n => n + 1);
+  }
+
+  function changeMode(value: Mode) {
+    invalidate();
+    immediateRun.current = false;
+    setForcedQuery(null);
+    setMode(value);
   }
 
   useEffect(() => {
@@ -116,17 +129,18 @@ export default function App() {
     let active = true;
     const immediate = immediateRun.current;
     immediateRun.current = false;
+    const forceTranslation = forcedQuery === query;
     const delay = immediate ? 0 : mode === 'translate' ? 550 : 100;
     const timer = setTimeout(async () => {
-      if (!text) { setLookup(emptyLookup); setTranslation(null); setBusy(false); return; }
+      if (!text) { setLookup(emptyLookup); setTranslation(null); setResolvedMode('dictionary'); setBusy(false); return; }
       setError('');
       try {
         let result = emptyLookup;
-        if (mode !== 'translate' && text.length <= 100 && !text.includes('\n')) result = await api.lookup(text);
+        if (!forceTranslation && mode !== 'translate' && text.length <= 100 && !text.includes('\n')) result = await api.lookup(text);
         if (!active || id !== revision.current) return;
         setLookup(result);
         setSelected(0);
-        const useDictionary = mode === 'dictionary' || (mode === 'auto' && (result.exact || !isSentence(text)));
+        const useDictionary = !forceTranslation && (mode === 'dictionary' || (mode === 'auto' && (result.exact || !isSentence(text))));
         setResolvedMode(useDictionary ? 'dictionary' : 'translate');
         if (useDictionary) { setBusy(false); return; }
         if (settings.translationEngine === 'none') { setBusy(false); return; }
@@ -143,7 +157,7 @@ export default function App() {
       }
     }, delay);
     return () => { active = false; clearTimeout(timer); };
-  }, [query, mode, direction, composing, runNonce, settings?.dictionaryId, settings?.autoDictionary, settings?.translationEngine]);
+  }, [query, mode, forcedQuery, direction, composing, runNonce, settings?.dictionaryId, settings?.autoDictionary, settings?.translationEngine]);
 
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
@@ -170,7 +184,7 @@ export default function App() {
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [composing, settingsOpen, resolvedMode, lookup, selected]);
+  }, [query, mode, composing, settingsOpen, resolvedMode, lookup, selected]);
 
   useEffect(() => {
     document.getElementById(`candidate-${selected}`)?.scrollIntoView({ block: 'nearest' });
@@ -248,7 +262,7 @@ export default function App() {
         </div>
         <div className="search-toolbar">
           <div className="segmented" aria-label={t("查询模式")}>{([['auto', t("自动")], ['dictionary', t("查词")], ['translate', t("句子翻译")]] as const).map(([value, label]) =>
-            <button key={value} className={mode === value ? 'selected' : ''} aria-pressed={mode === value} onClick={() => { invalidate(); setMode(value); }}>{label}</button>)}</div>
+            <button key={value} className={mode === value ? 'selected' : ''} aria-pressed={mode === value} onClick={() => changeMode(value)}>{label}</button>)}</div>
           {mode !== 'translate' && <div className="active-dictionary"><BookOpen size={12} /><select aria-label={t("选择当前词库")} value={settings?.dictionaryId || 'ecdict'} onChange={e => void quickSettings({ dictionaryId: e.target.value })}>
             {(catalog?.dictionaries || []).filter(item => item.installed).map(item => <option key={item.id} value={item.id}>{t('{language}词库', { language: t(item.languageName) })}</option>)}
           </select><ChevronDown size={11} /></div>}
@@ -265,7 +279,7 @@ export default function App() {
             <div className="welcome-art"><img src={appIcon} alt="" /></div>
             <p>{t("输入单词或词组开始查询。")}<br />{!sentenceEnabled && t("整句翻译可在设置中开启。")}</p>
             <div className="example-words">{(multilingualDictionary ? languageExamples[activeDictionary?.languageCode || ''] || [activeDictionary?.example || ''] : ['serendipity', 'resilience', '恰到好处']).filter(Boolean).map(word => <button key={word} onClick={() => setQueryAndFocus(word)}>{word}<ArrowRight size={12} /></button>)}</div>
-            <button className="sentence-example" onClick={() => { if (!sentenceEnabled) { openSettings('engines'); return; } setMode('translate'); setQueryAndFocus('The best way to predict the future is to create it.'); }}>{sentenceEnabled ? t("试试整句翻译") : t("按需开启整句翻译")}<ArrowRight size={13} /></button>
+            <button className="sentence-example" onClick={() => { if (!sentenceEnabled) { openSettings('engines'); return; } setMode('auto'); setQueryAndFocus('The best way to predict the future is to create it.'); }}>{sentenceEnabled ? t("试试整句翻译") : t("按需开启整句翻译")}<ArrowRight size={13} /></button>
           </div> : resolvedMode === 'translate' ? <div className="translation-panel">
             <div className="panel-heading"><span className="eyebrow">{translation?.direction === 'zh-en' ? t("英文译文") : t("整句翻译")}</span><span className="source-label"><Globe2 size={12} />{!sentenceEnabled ? t("按需启用") : 'Argos Translate'}</span></div>
             {!sentenceEnabled ? <div className="no-results" data-testid="translation-disabled"><ArrowLeftRight size={25} /><h3>{t("基础句子翻译尚未开启")}</h3><p>{t("安装 Argos 可自动翻译中英句子。")}<br />{t("也可以点击输入框右侧的 AI 翻译。")}</p><button className="secondary-button" onClick={() => openSettings('engines')}>{t("设置基础翻译")}<ArrowRight size={14} /></button></div> : busy ? <div className="loading-state"><LoaderCircle size={23} className="spin" /><h3>{t("正在翻译…")}</h3><p>{t("首次翻译需要加载本地模型，稍候即可。")}</p></div> : translation ? <>
@@ -295,7 +309,7 @@ export default function App() {
                 })}</div></div>}
                 {currentEntry.definition && <div className="english-definition"><button onClick={() => setExpanded(!expanded)} aria-expanded={expanded}>{t("英文释义")}<ChevronDown size={14} className={expanded ? 'rotated' : ''} /></button>{expanded && <p>{currentEntry.definition}</p>}</div>}
                 <button className="entry-source source-link" onClick={() => void api.openSource(resultDictionary?.id || 'ecdict').catch(e => setError(errorText(e)))}>{t("词库来源 ·")} {t(resultDictionary?.source || 'ECDICT')}</button>
-              </> : <div className="no-results"><Search size={26} /><h3>{t("暂未找到这个词条")}</h3><p>{t("试试其他拼写，或切换到翻译。")}</p><button className="secondary-button" onClick={() => { invalidate(); setMode('translate'); }}>{t("翻译这段内容")}<ArrowRight size={14} /></button></div>}
+              </> : <div className="no-results"><Search size={26} /><h3>{t("暂未找到这个词条")}</h3><p>{t("试试其他拼写，或切换到翻译。")}</p><button className="secondary-button" onClick={translateNow}>{t("翻译这段内容")}<ArrowRight size={14} /></button></div>}
             </article>
           </>}
         </section>

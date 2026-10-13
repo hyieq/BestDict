@@ -4,7 +4,7 @@
   <p><strong>专注本地AI查词翻译<br/>纯净、无广告、无订阅</strong></p>
   <p>A quiet, offline-first desktop dictionary & translator.</p>
   <p>
-    <img src="https://img.shields.io/badge/version-0.4.7-0067b8" alt="Version 0.4.7" />
+    <img src="https://img.shields.io/badge/version-0.4.9-0067b8" alt="Version 0.4.9" />
     <img src="https://img.shields.io/badge/platform-Windows_x64-0078d4" alt="Windows x64" />
     <img src="https://img.shields.io/badge/Electron-React_·_TypeScript-47848f" alt="Electron, React and TypeScript" />
     <a href="LICENSE"><img src="https://img.shields.io/badge/code_license-MIT-3d8558" alt="Code license: MIT" /></a>
@@ -45,6 +45,8 @@ BestDict 是一款 Windows x64 离线词典与翻译软件。按下 `Ctrl + Shif
 | --- | --- | --- |
 | Argos Translate | 约 145 MB | 基础中英双向翻译，支持自动翻译句子与 `Ctrl + Enter` |
 | Hy-MT2-1.8B Q4_K_M | 约 1.13 GB | AI 翻译、风格改写与润色，支持中文与英、西、日、韩、法互译 |
+
+翻译按钮和 `Ctrl + Enter` 只翻译当前内容，修改后优先查词；清空输入会恢复自动模式。主动选择「句子翻译」时可连续编辑。
 
 AI 通过输入框右侧按钮启动；已有译文时，切换风格会重新生成。输入润色要求后点击「润色并刷新」。如果模型返回相同内容，界面会提示。
 
@@ -118,8 +120,8 @@ npm.cmd run package
 提交并推送代码，再创建与版本一致的标签，例如：
 
 ```powershell
-git tag -a v0.4.7 -m "BestDict v0.4.7"
-git push origin v0.4.7
+git tag -a v0.4.9 -m "BestDict v0.4.9"
+git push origin v0.4.9
 ```
 
 在 GitHub 的 **Actions → Release** 查看构建进度；完成后可在 **Releases** 下载。
@@ -148,7 +150,7 @@ npm.cmd run package
 如果 Windows 占用了上次的打包目录，可指定独立输出目录再打包：
 
 ```powershell
-$env:BESTDICT_RELEASE_DIR = "$PWD\release\v0.4.7"
+$env:BESTDICT_RELEASE_DIR = "$PWD\release\v0.4.9"
 npm.cmd run package
 Remove-Item Env:BESTDICT_RELEASE_DIR
 ```

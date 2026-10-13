@@ -99,6 +99,16 @@ jobs:
             exit $testExit
           }
 
+      - name: Test packaged query mode and AI menus
+        run: |
+          $env:BESTDICT_TEST_EXE = Join-Path $PWD 'release/win-unpacked/BestDict.exe'
+          npm run test:query-mode
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm run test:ai-styles
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm run test:ai-menu
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
       - name: Prepare checksum and release notes
         run: |
           $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
