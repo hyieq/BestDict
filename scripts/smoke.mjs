@@ -90,6 +90,7 @@ try {
   await page.getByRole('button', { name: '设置', exact: true }).click();
   await page.getByRole('button', { name: '深色', exact: true }).click();
   await page.getByRole('button', { name: '保存设置', exact: true }).click();
+  await page.locator('html[data-theme="dark"]').waitFor();
   assert.equal(await page.locator('html').getAttribute('data-theme'), 'dark');
   await page.waitForTimeout(250);
   await page.screenshot({ path: path.join(captures, 'dark.png') });
