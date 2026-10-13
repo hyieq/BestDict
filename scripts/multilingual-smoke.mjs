@@ -24,9 +24,9 @@ try {
   await assert.rejects(page.evaluate(() => window.bestdict.translate('Hello.', 'en-zh', 1)), /尚未开启/);
   await page.getByRole('button', { name: '设置', exact: true }).click();
   await page.getByRole('tab', { name: '翻译引擎', exact: true }).click();
-  await page.getByRole('button', { name: /Argos Translate/ }).click();
+  await page.getByRole('checkbox', { name: '自动翻译中英句子' }).check();
   await page.getByRole('button', { name: '保存设置', exact: true }).click();
-  await page.getByRole('button', { name: '翻译', exact: true }).click();
+  await page.getByRole('button', { name: '句子翻译', exact: true }).click();
   await input.fill('Please send me the report before Friday.');
   await page.getByTestId('translation-result').waitFor({ timeout: 60000 });
   assert.match(await page.getByTestId('translation-result').innerText(), /报告/);
@@ -54,14 +54,13 @@ try {
   }
   await page.getByRole('button', { name: '设置', exact: true }).click();
   await page.getByRole('tab', { name: '翻译引擎', exact: true }).click();
-  await page.getByRole('button', { name: /HY-MT1.5 · 1.8B/ }).click();
   await page.screenshot({ path: path.join(captures, 'engines.png') });
   await page.getByRole('button', { name: '保存设置', exact: true }).click();
-  await page.getByRole('button', { name: '翻译', exact: true }).click();
-  await page.getByRole('combobox', { name: '翻译方向' }).selectOption('fr-zh');
   await input.fill('Bonjour, comment allez-vous ?');
-  await page.getByTestId('translation-result').waitFor({ timeout: 60000 });
-  assert.match(await page.getByTestId('translation-result').innerText(), /你好|您好/);
+  await page.getByRole('button', { name: 'AI 翻译', exact: true }).click();
+  await page.getByTestId('ai-translation-result').waitFor({ timeout: 180000 });
+  assert.match(await page.getByTestId('ai-translation-result').innerText(), /你好|您好/);
+  assert.equal(await page.evaluate(() => window.bestdict.getSettings().then(s => s.translationEngine)), 'argos');
   await page.screenshot({ path: path.join(captures, 'hy-translation.png') });
   await page.getByRole('button', { name: '设置', exact: true }).click();
   await page.getByRole('tab', { name: '通用', exact: true }).click();
@@ -78,9 +77,9 @@ try {
   await page.screenshot({ path: path.join(captures, 'dark-dictionary.png') });
   await page.getByRole('button', { name: '设置', exact: true }).click();
   await page.getByRole('tab', { name: '翻译引擎', exact: true }).click();
-  await page.getByRole('button', { name: /仅查词/ }).click();
+  await page.getByRole('checkbox', { name: '自动翻译中英句子' }).uncheck();
   await page.getByRole('button', { name: '保存设置', exact: true }).click();
-  await page.getByRole('button', { name: '翻译', exact: true }).click();
+  await page.getByRole('button', { name: '句子翻译', exact: true }).click();
   await page.getByTestId('translation-disabled').waitFor();
   await assert.rejects(page.evaluate(() => window.bestdict.translate('Hello.', 'en-zh', 999)), /尚未开启/);
   assert.equal(await page.evaluate(() => window.bestdict.getResources().then(r => r.argos.ready && r.hy.ready)), true);

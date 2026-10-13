@@ -28,9 +28,10 @@ try {
   }, files);
   await page.getByRole('button', { name: '设置', exact: true }).click();
   await page.getByRole('tab', { name: '翻译引擎', exact: true }).click();
+  await page.getByTestId('engine-argos').locator('summary').click();
   await page.getByTestId('engine-argos').getByRole('button', { name: '导入模型包', exact: true }).click();
-  await page.getByTestId('engine-argos').getByText('待保存启用', { exact: true }).waitFor({ timeout: 60000 });
-  assert.equal(await page.evaluate(() => window.bestdict.getSettings().then(s => s.translationEngine)), 'none');
+  await page.getByTestId('engine-argos').getByText('已启用', { exact: true }).waitFor({ timeout: 60000 });
+  assert.equal(await page.evaluate(() => window.bestdict.getSettings().then(s => s.translationEngine)), 'argos');
   assert.equal(await page.evaluate(() => window.importPhases.includes('downloading')), false);
   await page.getByRole('button', { name: '保存设置', exact: true }).click();
   assert.equal(await page.evaluate(() => window.bestdict.getSettings().then(s => s.translationEngine)), 'argos');

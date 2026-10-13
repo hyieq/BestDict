@@ -9,7 +9,7 @@ export interface Settings {
   locale: 'zh-CN' | 'en'; traySettingsAvailable: boolean;
   startup: boolean; shortcut: string; theme: 'system' | 'light' | 'dark';
   shortcutError: string; startupAvailable: boolean;
-  dictionaryId: string; autoDictionary: boolean; translationEngine: 'none' | 'argos' | 'hy';
+  dictionaryId: string; autoDictionary: boolean; translationEngine: 'none' | 'argos';
 }
 export interface Status { version: string; dictionaryCount: number; modelReady: boolean; error: string; shortcutError: string; dictionaryName: string; engine: string }
 export interface Translation { text: string; direction: string; cached: boolean; engine: string; targetLanguage?: string }
@@ -27,6 +27,8 @@ export interface ResourceCatalog {
 export interface DesktopAPI {
   lookup(text: string): Promise<LookupResult>;
   translate(text: string, direction: Direction, requestId: number): Promise<Translation>;
+  translateAI(text: string, direction: Direction, requestId: number): Promise<Translation>;
+  cancelAITranslation(): Promise<void>;
   cancelTranslation(): Promise<void>;
   status(): Promise<Status>;
   getSettings(): Promise<Settings>;

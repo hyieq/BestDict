@@ -4,6 +4,8 @@ import SettingsDialog from './SettingsDialog';
 import appIcon from './assets/app-icon.png';
 import { createTranslator } from './i18n';
 import type { Direction, LookupResult, Mode, Settings, Status, Translation, ResourceCatalog } from './types';
+import { isSentence } from '../electron/query-policy.mjs';
+import { useAITranslation } from './useAITranslation';
 
 const api = window.bestdict;
 const emptyLookup: LookupResult = { entries: [], exact: false, corrected: false };
@@ -31,21 +33,29 @@ export default function App() {
   const [settingsTab, setSettingsTab] = useState('general');
   const [catalog, setCatalog] = useState<ResourceCatalog | null>(null);
   const [copied, setCopied] = useState(false);
+  const [aiCopied, setAICopied] = useState(false);
   const [composing, setComposing] = useState(false);
   const [runNonce, setRunNonce] = useState(0);
   const [expanded, setExpanded] = useState(false);
   const [systemDark, setSystemDark] = useState(window.matchMedia('(prefers-color-scheme: dark)').matches);
   const input = useRef<HTMLTextAreaElement>(null);
+  const aiPanel = useRef<HTMLElement>(null);
   const revision = useRef(0);
   const statusRevision = useRef(0);
   const immediateRun = useRef(false);
   const currentEntry = lookup.entries[selected];
+  const ai = useAITranslation(query);
   const activeDictionary = catalog?.dictionaries.find(item => item.id === settings?.dictionaryId);
   const resultDictionary = catalog?.dictionaries.find(item => item.id === (currentEntry?.dictionaryId || lookup.dictionaryId || settings?.dictionaryId));
   const multilingualDictionary = !!settings?.dictionaryId && settings.dictionaryId !== 'ecdict';
-  const sentenceEnabled = !!settings && settings.translationEngine !== 'none';
+  const sentenceEnabled = settings?.translationEngine === 'argos';
+  const aiReady = catalog?.hy.ready ?? false;
   const t = createTranslator(settings?.locale || 'zh-CN');
   const dark = settings?.theme === 'dark' || (settings?.theme !== 'light' && systemDark);
+
+  useEffect(() => {
+    if (ai.visible && ai.expanded) aiPanel.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }, [ai.visible, ai.expanded, ai.busy]);
 
   useEffect(() => {
     const media = window.matchMedia('(prefers-color-scheme: dark)');
@@ -113,12 +123,7 @@ export default function App() {
         if (!active || id !== revision.current) return;
         setLookup(result);
         setSelected(0);
-        const chinese = /[\u3400-\u9fff]/.test(text);
-        const singleWord = /^\p{Script=Latin}[\p{Script=Latin}\p{Mark}'’-]*$/u.test(text);
-        const shortChinese = chinese && text.length <= 4 && !/[。！？!?]/.test(text);
-        const activeLanguage = result.dictionaryId?.split('-')[1] || settings?.dictionaryId?.split('-')[1];
-        const shortAsianWord = ['ja', 'ko'].includes(activeLanguage || '') && text.length <= 12 && !/[\s。！？.!?]/.test(text);
-        const useDictionary = mode === 'dictionary' || (mode === 'auto' && (singleWord || shortChinese || shortAsianWord || result.exact));
+        const useDictionary = mode === 'dictionary' || (mode === 'auto' && (result.exact || !isSentence(text)));
         setResolvedMode(useDictionary ? 'dictionary' : 'translate');
         if (useDictionary) { setBusy(false); return; }
         if (settings.translationEngine === 'none') { setBusy(false); return; }
@@ -189,7 +194,6 @@ export default function App() {
       setLookup(emptyLookup);
     }
     setSettings(next);
-    if (next.translationEngine !== 'hy' && !['auto', 'en-zh', 'zh-en'].includes(direction)) setDirection('auto');
     refreshStatus();
     refreshResources();
   }
@@ -223,23 +227,28 @@ export default function App() {
             onChange={e => changeQuery(e.target.value)}
             onCompositionStart={() => { invalidate(); setComposing(true); }}
             onCompositionEnd={() => setComposing(false)} spellCheck={false} />
-          {query && <button className="icon-button clear-button" title={t("清空")} aria-label={t("清空")} onClick={() => setQueryAndFocus('')}><X size={16} /></button>}
+          <div className="search-actions">
+            <button className="ai-trigger" disabled={!query.trim() || composing} title={t(aiReady ? '手动调用 HY，不影响日常查词和句子翻译。' : '安装 HY 后可使用 AI 翻译。')} onClick={() => { setAICopied(false); if (ai.busy) ai.cancel(); else if (!aiReady) openSettings('engines'); else void ai.run(); }}>
+              {ai.busy ? <LoaderCircle size={15} className="spin" /> : <Sparkles size={15} />}{t(ai.busy ? '取消 AI 翻译' : 'AI 翻译')}
+            </button>
+            {query && <button className="icon-button clear-button" title={t("清空")} aria-label={t("清空")} onClick={() => setQueryAndFocus('')}><X size={16} /></button>}
+          </div>
         </div>
         <div className="search-toolbar">
-          <div className="segmented" aria-label={t("查询模式")}>{([['auto', t("自动")], ['dictionary', t("查词")], ['translate', t("翻译")]] as const).map(([value, label]) =>
+          <div className="segmented" aria-label={t("查询模式")}>{([['auto', t("自动")], ['dictionary', t("查词")], ['translate', t("句子翻译")]] as const).map(([value, label]) =>
             <button key={value} className={mode === value ? 'selected' : ''} aria-pressed={mode === value} onClick={() => { invalidate(); setMode(value); }}>{label}</button>)}</div>
           {mode !== 'translate' && <div className="active-dictionary"><BookOpen size={12} /><select aria-label={t("选择当前词库")} value={settings?.dictionaryId || 'ecdict'} onChange={e => void quickSettings({ dictionaryId: e.target.value })}>
             {(catalog?.dictionaries || []).filter(item => item.installed).map(item => <option key={item.id} value={item.id}>{t('{language}词库', { language: t(item.languageName) })}</option>)}
           </select><ChevronDown size={11} /></div>}
-          <div className="direction-picker"><ArrowLeftRight size={13} /><select aria-label={t("翻译方向")} disabled={!sentenceEnabled} value={direction} onChange={e => { invalidate(); setDirection(e.target.value as Direction); if (e.target.value !== 'auto' && settings?.autoDictionary) void quickSettings({ autoDictionary: false }); }}>
-            <option value="auto">{settings?.autoDictionary ? t("自动识别语言") : t("按当前词库")}</option><option value="en-zh">{t("英文 → 中文")}</option><option value="zh-en">{t("中文 → 英文")}</option>
-            {settings?.translationEngine === 'hy' && <><option value="es-zh">{t("西班牙语 → 中文")}</option><option value="zh-es">{t("中文 → 西班牙语")}</option><option value="ja-zh">{t("日语 → 中文")}</option><option value="zh-ja">{t("中文 → 日语")}</option><option value="ko-zh">{t("韩语 → 中文")}</option><option value="zh-ko">{t("中文 → 韩语")}</option><option value="fr-zh">{t("法语 → 中文")}</option><option value="zh-fr">{t("中文 → 法语")}</option></>}
-            </select><ChevronDown size={12} /></div>
-          <label className="auto-dictionary" title={t("在已安装词库中自动匹配；关闭后只查当前词库。")}>{t("自动匹配")}<input type="checkbox" aria-label={t("自动匹配语言和词库")} checked={settings?.autoDictionary ?? true} onChange={e => { if (e.target.checked) setDirection('auto'); void quickSettings({ autoDictionary: e.target.checked }); }} /></label>
+          {(mode === 'translate' || resolvedMode === 'translate') && <div className="direction-picker"><ArrowLeftRight size={13} /><select aria-label={t("翻译方向")} value={direction} onChange={e => { invalidate(); setDirection(e.target.value as Direction); }}>
+            <option value="auto">{t("自动识别语言")}</option><option value="en-zh">{t("英文 → 中文")}</option><option value="zh-en">{t("中文 → 英文")}</option>
+            </select><ChevronDown size={12} /></div>}
+          {mode !== 'translate' && <label className="auto-dictionary" title={t("在已安装词库中自动匹配；关闭后只查当前词库。")}>{t("自动匹配词库")}<input type="checkbox" aria-label={t("自动匹配词库")} checked={settings?.autoDictionary ?? true} onChange={e => { void quickSettings({ autoDictionary: e.target.checked }); }} /></label>}
           <button className="translate-trigger" disabled={!query.trim() || busy} onClick={translateNow}>{busy ? <LoaderCircle size={14} className="spin" /> : <ArrowRight size={14} />}{t("翻译")}<span>Ctrl ↵</span></button>
         </div>
-        <button className={`translation-engine-status ${sentenceEnabled ? 'enabled' : ''}`} data-testid="translation-engine-status" onClick={() => openSettings('engines')}><Sparkles size={13} /><span>{t('整句翻译：')}{sentenceEnabled ? settings?.translationEngine === 'argos' ? 'Argos Translate' : 'HY-MT1.5' : t('未开启')}</span><span>{sentenceEnabled ? t('已启用') : t('设置')}<ChevronDown size={12} /></span></button>
+        <button className={`translation-engine-status ${sentenceEnabled ? 'enabled' : ''}`} data-testid="translation-engine-status" onClick={() => openSettings('engines')}><ArrowLeftRight size={13} /><span>{t('基础句子翻译：')}{sentenceEnabled ? 'Argos Translate' : t('未开启')}</span><span>{sentenceEnabled ? t('已启用') : t('设置')}<ChevronDown size={12} /></span></button>
         {(error || status?.error || status?.shortcutError) && <div className="error-banner" role="alert">{t(error || status?.error || status?.shortcutError || '')}</div>}
+        <div className={`results-stack ${ai.visible ? 'has-ai' : ''}`}>
         <section className={`result-area ${!query.trim() ? 'empty-area' : ''}`} aria-live="polite" aria-busy={busy}>
           {!query.trim() ? <div className="welcome">
             <div className="welcome-art"><img src={appIcon} alt="" /></div>
@@ -247,11 +256,11 @@ export default function App() {
             <div className="example-words">{(multilingualDictionary ? languageExamples[activeDictionary?.languageCode || ''] || [activeDictionary?.example || ''] : ['serendipity', 'resilience', '恰到好处']).filter(Boolean).map(word => <button key={word} onClick={() => setQueryAndFocus(word)}>{word}<ArrowRight size={12} /></button>)}</div>
             <button className="sentence-example" onClick={() => { if (!sentenceEnabled) { openSettings('engines'); return; } setMode('translate'); setQueryAndFocus('The best way to predict the future is to create it.'); }}>{sentenceEnabled ? t("试试整句翻译") : t("按需开启整句翻译")}<ArrowRight size={13} /></button>
           </div> : resolvedMode === 'translate' ? <div className="translation-panel">
-            <div className="panel-heading"><span className="eyebrow">{translation?.targetLanguage ? t('{language}译文', { language: t(translation.targetLanguage) }) : translation?.direction === 'zh-en' ? t("英文译文") : t("整句翻译")}</span><span className="source-label"><Globe2 size={12} />{!sentenceEnabled ? t("按需启用") : settings?.translationEngine === 'hy' ? 'HY-MT1.5' : t("本地翻译")}</span></div>
-            {!sentenceEnabled ? <div className="no-results" data-testid="translation-disabled"><Sparkles size={25} /><h3>{t("整句翻译尚未开启")}</h3><p>{t("在设置中下载并启用 Argos 或 HY-MT1.5，")}<br />{t("即可在本机离线翻译整句。")}</p><button className="secondary-button" onClick={() => openSettings('engines')}>{t("选择翻译模型")}<ArrowRight size={14} /></button></div> : busy ? <div className="loading-state"><LoaderCircle size={23} className="spin" /><h3>{t("正在理解这句话…")}</h3><p>{t("首次翻译需要加载本地模型，稍候即可。")}</p></div> : translation ? <>
+            <div className="panel-heading"><span className="eyebrow">{translation?.direction === 'zh-en' ? t("英文译文") : t("整句翻译")}</span><span className="source-label"><Globe2 size={12} />{!sentenceEnabled ? t("按需启用") : 'Argos Translate'}</span></div>
+            {!sentenceEnabled ? <div className="no-results" data-testid="translation-disabled"><ArrowLeftRight size={25} /><h3>{t("基础句子翻译尚未开启")}</h3><p>{t("安装 Argos 可自动翻译中英句子。")}<br />{t("也可以点击输入框右侧的 AI 翻译。")}</p><button className="secondary-button" onClick={() => openSettings('engines')}>{t("设置基础翻译")}<ArrowRight size={14} /></button></div> : busy ? <div className="loading-state"><LoaderCircle size={23} className="spin" /><h3>{t("正在翻译…")}</h3><p>{t("首次翻译需要加载本地模型，稍候即可。")}</p></div> : translation ? <>
               <p className="translation-text" data-testid="translation-result">{translation.text}</p>
               <div className="translation-meta"><span>{translation.engine} {t("· CPU 离线翻译")}{translation.cached ? t(" · 已缓存") : ''}</span><button className="copy-button" onClick={copyResult}>{copied ? <Check size={14} /> : <Copy size={14} />}{copied ? t("已复制") : t("复制译文")}</button></div>
-              <div className="quality-note">{settings?.translationEngine === 'hy' ? t("Built with Tencent Hunyuan · 原文仅在本机处理") : t("日常表达使用轻量模型；可在设置中切换 HY-MT1.5。")}</div>
+              <div className="quality-note">{t("需要 AI 译文时，点击输入框右侧的 AI 翻译。")}</div>
             </> : <div className="no-results"><ArrowLeftRight size={25} /><h3>{t("准备翻译")}</h3><p>{t("继续输入，或按 Ctrl + Enter 立即翻译。")}</p></div>}
           </div> : <>
             <aside className="candidates"><div className="candidate-heading">{lookup.corrected ? t("相近拼写") : t("推荐词条")}<span>{lookup.entries.length ? t('{count} 条', { count: lookup.entries.length }) : ''}</span></div>
@@ -279,10 +288,19 @@ export default function App() {
             </article>
           </>}
         </section>
+        {ai.visible && <section ref={aiPanel} className="ai-result" data-testid="ai-panel" aria-label={t('AI 译文')} aria-live="polite" aria-busy={ai.busy}>
+          <div className="ai-result-heading"><button className="ai-collapse" aria-expanded={ai.expanded} onClick={() => ai.setExpanded(!ai.expanded)}><Sparkles size={15} />{t('AI 译文')}<ChevronDown size={14} className={ai.expanded ? 'rotated' : ''} /></button><span>HY-MT1.5</span></div>
+          {ai.expanded && <div className="ai-result-body">
+            <div className="ai-controls"><label>{t('AI 翻译方向')}<select aria-label={t('AI 翻译方向')} value={ai.direction} onChange={e => ai.setDirection(e.target.value as Direction)}>
+              {(['auto', 'en-zh', 'zh-en', 'es-zh', 'zh-es', 'ja-zh', 'zh-ja', 'ko-zh', 'zh-ko', 'fr-zh', 'zh-fr'] as const).map((value, index) => <option key={value} value={value}>{t(['自动识别语言', '英文 → 中文', '中文 → 英文', '西班牙语 → 中文', '中文 → 西班牙语', '日语 → 中文', '中文 → 日语', '韩语 → 中文', '中文 → 韩语', '法语 → 中文', '中文 → 法语'][index])}</option>)}
+            </select></label><button className="secondary-button" onClick={() => { setAICopied(false); if (ai.busy) ai.cancel(); else void ai.run(); }}>{t(ai.busy ? '取消' : '重新翻译')}</button></div>
+            {ai.busy ? <div className="ai-loading"><LoaderCircle size={17} className="spin" />{t('AI 正在翻译，首次使用需要加载模型…')}</div> : ai.error ? <div className="error-banner" role="alert">{t(ai.error)}</div> : ai.result ? <><p className="ai-translation-text" data-testid="ai-translation-result">{ai.result.text}</p><div className="translation-meta"><span>{t('本地 AI 翻译')}{ai.result.cached ? t(' · 已缓存') : ''}</span><button className="copy-button" onClick={() => { if (ai.result) void api.copy(ai.result.text).then(() => setAICopied(true)).catch(e => setError(errorText(e))); }}>{aiCopied ? <Check size={14} /> : <Copy size={14} />}{t(aiCopied ? '已复制' : '复制 AI 译文')}</button></div></> : <p className="quality-note">{t('已取消，可点击重新翻译。')}</p>}
+          </div>}
+        </section>}
+        </div>
       </section>
-      <footer className="statusbar"><span><i className={status?.dictionaryCount && (!sentenceEnabled || status.modelReady) ? 'ready' : ''} />{status?.dictionaryCount && (!sentenceEnabled || status.modelReady) ? t("离线资源已就绪") : status ? t("本地资源尚未就绪") : t("正在检查本地资源")}<span className="footer-divider">·</span>{status?.dictionaryCount ? t('{count} 词条', { count: status.dictionaryCount.toLocaleString(settings?.locale) }) : 'ECDICT'}<span className="footer-divider">·</span>{!sentenceEnabled ? t("仅查词") : settings?.translationEngine === 'hy' ? 'HY-MT1.5' : 'Argos'}</span><span>{t("Esc 隐藏")}</span></footer>
+      <footer className="statusbar"><span><i className={status?.dictionaryCount && (!sentenceEnabled || status.modelReady) ? 'ready' : ''} />{status?.dictionaryCount && (!sentenceEnabled || status.modelReady) ? t("离线资源已就绪") : status ? t("本地资源尚未就绪") : t("正在检查本地资源")}<span className="footer-divider">·</span>{status?.dictionaryCount ? t('{count} 词条', { count: status.dictionaryCount.toLocaleString(settings?.locale) }) : 'ECDICT'}<span className="footer-divider">·</span>{!sentenceEnabled ? t("仅查词") : 'Argos'}</span><span>{t("Esc 隐藏")}</span></footer>
     </main>
     {settingsOpen && settings && <SettingsDialog settings={settings} status={status} catalog={catalog} initialTab={settingsTab} onClose={() => { setSettingsOpen(false); input.current?.focus(); }} onSaved={savedSettings} onRefresh={refreshResources} />}
   </div>;
 }
-

@@ -13,7 +13,7 @@ try {
   await page.getByText('离线资源已就绪').waitFor();
   const input = page.getByRole('textbox', { name: '输入单词或句子' });
   const picker = page.getByRole('combobox', { name: '选择当前词库' });
-  const auto = page.getByRole('checkbox', { name: '自动匹配语言和词库' });
+  const auto = page.getByRole('checkbox', { name: '自动匹配词库' });
   assert.equal(await auto.isChecked(), true);
   for (const [word, gloss, language] of [['perro', /狗/, '西班牙语'], ['사랑', /爱|愛/, '韩语'], ['猫', /貓|猫/, '日语'], ['hello', /喂/, '英语']]) {
     await input.fill(word);

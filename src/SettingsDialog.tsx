@@ -60,7 +60,10 @@ export default function SettingsDialog({ settings, status, catalog, initialTab, 
       const result = local ? await api.importResource(id) : await api.downloadResource(id);
       onRefresh();
       if (result && mounted.current) {
-        setDraft(previous => id === 'hy-mt1.5' ? { ...previous, translationEngine: 'hy' } : id === 'argos' ? { ...previous, translationEngine: 'argos' } : { ...previous, dictionaryId: id });
+        if (id === 'argos' || id === 'hy-mt1.5') {
+          const current = await api.getSettings();
+          if (mounted.current) { setDraft(previous => ({ ...previous, translationEngine: current.translationEngine })); onSaved(current); }
+        } else setDraft(previous => ({ ...previous, dictionaryId: id }));
       }
     } catch (e) { if (mounted.current) setError(errorText(e)); }
     finally { installing.current = false; if (mounted.current) { setJob(null); setInstallPending(false); } }
@@ -68,7 +71,7 @@ export default function SettingsDialog({ settings, status, catalog, initialTab, 
 
   function engineState(engine: Settings['translationEngine']) {
     if (draft.translationEngine === engine && settings.translationEngine !== engine) return t('待保存启用');
-    if (settings.translationEngine === engine) return draft.translationEngine === engine ? t('已启用') : t('当前启用 · 待保存切换');
+    if (settings.translationEngine === engine) return draft.translationEngine === engine ? t('已启用') : t('待保存关闭');
     return t('已安装 · 未启用');
   }
 
@@ -103,7 +106,7 @@ export default function SettingsDialog({ settings, status, catalog, initialTab, 
   return <div className="modal-backdrop" onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }}>
     <div className="settings-dialog" data-tab={tab} ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="settings-title" onKeyDown={e => {
       if (e.key !== 'Tab') return;
-      const nodes = Array.from(dialogRef.current!.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), select'));
+      const nodes = Array.from(dialogRef.current!.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), select, summary')).filter(node => node.getClientRects().length > 0);
       const first = nodes[0], last = nodes[nodes.length - 1];
       if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
       else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
@@ -126,7 +129,7 @@ export default function SettingsDialog({ settings, status, catalog, initialTab, 
             if (modifiers.length) setDraft({ ...draft, shortcut: [...modifiers, e.key.toUpperCase()].join('+') });
           }} /></div>
           <div className="setting-row"><div><label>{t("系统托盘")}</label><p>{t("点击图标打开窗口，右键查看菜单。")}</p></div>{settings.traySettingsAvailable && <button className="tray-settings-button" onClick={() => void api.openTraySettings().catch(e => setError(errorText(e)))}>{t("系统设置")}<ExternalLink size={12} /></button>}</div>
-          <div className="resource-card"><Leaf size={19} /><div><strong>{t("本地资源")}</strong><p>{t(status?.dictionaryName || '英语 ↔ 中文')} · {t('{count} 词条', { count: status?.dictionaryCount?.toLocaleString(draft.locale) || '—' })}<br />{t("整句翻译 ·")} {settings.translationEngine === 'none' ? t("未开启") : settings.translationEngine === 'hy' ? 'HY-MT1.5' : 'Argos Translate'}</p></div></div>
+          <details className="resource-details"><summary>{t("本地资源信息")}</summary><div className="resource-card"><Leaf size={19} /><div><strong>{t(status?.dictionaryName || '英语 ↔ 中文')}</strong><p>{t('{count} 词条', { count: status?.dictionaryCount?.toLocaleString(draft.locale) || '—' })}<br />{t("基础句子翻译：")} {settings.translationEngine === 'none' ? t("未开启") : 'Argos Translate'}</p></div></div></details>
         </>}
         {tab === 'dictionaries' && <>
           <p className="settings-intro">{t("选择当前查词使用的词库。扩展词库提供中文释义，按需下载，安装后离线使用。")}</p>
@@ -137,34 +140,35 @@ export default function SettingsDialog({ settings, status, catalog, initialTab, 
             <div className="dictionary-card-bottom"><span>{t(item.source)}<span className="license-label">{t(item.license)}</span></span><div>{!item.installed && <button disabled={!!job || installPending} onClick={() => void install(item.id, true)}><Upload size={11} />{t("导入")}</button>}<button aria-label={t('查看{language}词库来源', { language: t(item.languageName) })} onClick={() => void api.openSource(item.id).catch(e => setError(errorText(e)))}><ExternalLink size={11} />{t("来源")}</button></div></div>
             {downloadStatus(item.id)}
           </div>)}</div>
-          <div className="catalog-note">{t("四种扩展词库共享中文版维基词典数据，首次下载约 224 MB，后续复用缓存，仅建立所选语言的索引。中文释义可能混用简繁体，覆盖率取决于社区词条。")}</div>
+          <details className="resource-details"><summary>{t('词库下载与数据说明')}</summary><p>{t("四种扩展词库共享中文版维基词典数据，首次下载约 224 MB，后续复用缓存，仅建立所选语言的索引。中文释义可能混用简繁体，覆盖率取决于社区词条。")}</p></details>
         </>}
         {tab === 'engines' && <>
-          <div className="engine-current" role="status">{t("当前整句翻译：")}{settings.translationEngine === 'none' ? t("未开启") : settings.translationEngine === 'argos' ? 'Argos Translate' : 'HY-MT1.5'}</div><p className="settings-intro">{t("默认仅查词。整句翻译需下载模型，选择引擎并保存设置后启用，无需 API Key。")}</p>
-          <div className={`engine-card ${draft.translationEngine === 'none' ? 'picked' : ''}`}>
-            <button className="engine-select" aria-pressed={draft.translationEngine === 'none'} onClick={() => setDraft({ ...draft, translationEngine: 'none' })}><div><strong>{t("仅查词")}</strong><p>{t("默认 · 单词与词组 · 关闭整句翻译")}</p></div>{draft.translationEngine === 'none' && <Check size={16} />}</button>
-          </div>
+          <p className="settings-intro">{t('查词始终可用。基础翻译自动处理句子，AI 翻译按按钮调用。')}</p>
           <div className={`engine-card ${draft.translationEngine === 'argos' ? 'picked' : ''}`} data-testid="engine-argos">
-            <button className="engine-select" aria-pressed={draft.translationEngine === 'argos'} disabled={!catalog?.argos.ready} onClick={() => setDraft({ ...draft, translationEngine: 'argos' })}><div><strong>Argos Translate</strong><p>{t("基础整句翻译 · 中英双向 · 按需下载")}</p></div>{draft.translationEngine === 'argos' && <Check size={16} />}</button>
-            <div className="engine-description">{t("中英两个方向的模型包合计约 145 MB，下载后离线使用。")}</div>
-            <div className="engine-actions">{catalog?.argos.ready ? <span className="installed-label" data-testid="engine-state"><Check size={13} />{engineState('argos')}</span> : <><button className="small-download" disabled={!!job || installPending} onClick={() => void install('argos', false)}><Download size={13} />{t("下载中英模型")}</button><button className="secondary-button" disabled={!!job || installPending} onClick={() => void install('argos', true)}><Upload size={13} />{t('导入模型包')}</button></>}
-              {copyButton('argos')}
-              <button className="source-link" onClick={() => void api.openSource('argos').catch(e => setError(errorText(e)))}><ExternalLink size={12} />{t("官方来源")}</button></div>
-            {catalog?.argos.ready && draft.translationEngine !== 'argos' && <button className="secondary-button" onClick={() => setDraft(previous => ({ ...previous, translationEngine: 'argos' }))}>{t('启用此模型')}</button>}
+            <div className="engine-heading"><div><strong>{t('基础句子翻译')}</strong><p>Argos Translate · {t('中英双向')}</p></div><span className="engine-badge">{catalog?.argos.ready ? engineState('argos') : t('未安装')}</span></div>
+            <div className="engine-primary">
+              {catalog?.argos.ready ? <label className="engine-toggle" htmlFor="basic-sentence"><span>{t('自动翻译中英句子')}</span><input id="basic-sentence" type="checkbox" className="switch" checked={draft.translationEngine === 'argos'} onChange={e => setDraft(previous => ({ ...previous, translationEngine: e.target.checked ? 'argos' : 'none' }))} /></label> : <button className="small-download" disabled={!!job || installPending} onClick={() => void install('argos', false)}><Download size={13} />{t('下载中英模型')}<span>145 MB</span></button>}
+            </div>
             {downloadStatus('argos')}
-            <div className="model-download-note">{t('自行下载时需获取中英两个方向的模型包，导入时同时选择两个文件。')}</div>
+            <details className="resource-details"><summary>{t('下载选项与模型说明')}</summary>
+              <p>{t('首次安装后默认开启；关闭后仍可查词，模型文件会保留。')}</p>
+              <div className="engine-actions"><button className="secondary-button" disabled={!!job || installPending} onClick={() => void install('argos', true)}><Upload size={13} />{t('导入模型包')}</button>{copyButton('argos')}<button className="source-link" onClick={() => void api.openSource('argos').catch(e => setError(errorText(e)))}><ExternalLink size={12} />{t('官方来源')}</button></div>
+              <p>{t('自行下载时需获取中英两个方向的模型包，导入时同时选择两个文件。')}</p>
+            </details>
           </div>
-          <div className={`engine-card ${draft.translationEngine === 'hy' ? 'picked' : ''}`} data-testid="engine-hy">
-            <button className="engine-select" aria-pressed={draft.translationEngine === 'hy'} disabled={!catalog?.hy.ready} onClick={() => setDraft({ ...draft, translationEngine: 'hy' })}><div><strong>HY-MT1.5 · 1.8B</strong><p>{t("腾讯混元 · 官方 Q4_K_M · 多语言翻译")}</p></div>{draft.translationEngine === 'hy' && <Check size={16} />}</button>
-            <div className="engine-description">{t("CPU 本地运行，推荐至少 8 GB 内存。模型约 1.13 GB，首次使用需要下载或导入官方 GGUF 文件。")}</div>
-            <div className="engine-actions">{catalog?.hy.ready ? <span className="installed-label" data-testid="engine-state"><Check size={13} />{engineState('hy')}</span> : <><button className="small-download" disabled={!!job || installPending} onClick={() => void install('hy-mt1.5', false)}><Download size={13} />{t("下载模型")}</button><button className="secondary-button" disabled={!!job || installPending} onClick={() => void install('hy-mt1.5', true)}><Upload size={13} />{t("导入 GGUF")}</button></>}
-              {copyButton('hy-mt1.5')}
-              <button className="source-link" onClick={() => void api.openSource('hy-mt1.5').catch(e => setError(errorText(e)))}><ExternalLink size={12} />{t("官方来源")}</button></div>
-            {catalog?.hy.ready && draft.translationEngine !== 'hy' && <button className="secondary-button" onClick={() => setDraft(previous => ({ ...previous, translationEngine: 'hy' }))}>{t('启用此模型')}</button>}
+          <div className="engine-card" data-testid="engine-hy">
+            <div className="engine-heading"><div><strong>{t('AI 翻译')}</strong><p>HY-MT1.5 · 1.8B · {t('多语言')}</p></div><span className="engine-badge">{catalog?.hy.ready ? t('已安装') : t('未安装')}</span></div>
+            <p className="engine-purpose">{t('点击输入框右侧的 AI 翻译时运行，不替代 Argos。')}</p>
+            <div className="engine-primary">{catalog?.hy.ready ? <span className="installed-label"><Check size={13} />{t('可通过 AI 翻译按钮使用')}</span> : <button className="small-download" disabled={!!job || installPending} onClick={() => void install('hy-mt1.5', false)}><Download size={13} />{t('下载模型')}<span>1.13 GB</span></button>}</div>
             {downloadStatus('hy-mt1.5')}
-            <div className="model-license">{t("模型适用腾讯 HY 社区许可（含地域限制）。下载和使用前请阅读")}<button onClick={() => void api.openSource('hy-license').catch(e => setError(errorText(e)))}>{t("模型许可")}</button>。<span>Built with Tencent Hunyuan</span></div>
+            <div className="license-reminder"><button onClick={() => void api.openSource('hy-license').catch(e => setError(errorText(e)))}>{t('模型许可')}</button><span>{t('使用前请阅读')}</span></div>
+            <details className="resource-details"><summary>{t('下载选项、运行要求与许可')}</summary>
+              <p>{t('CPU 本地运行，推荐至少 8 GB 内存。模型约 1.13 GB，首次使用需要下载或导入官方 GGUF 文件。')}</p>
+              <div className="engine-actions"><button className="secondary-button" disabled={!!job || installPending} onClick={() => void install('hy-mt1.5', true)}><Upload size={13} />{t('导入 GGUF')}</button>{copyButton('hy-mt1.5')}<button className="source-link" onClick={() => void api.openSource('hy-mt1.5').catch(e => setError(errorText(e)))}><ExternalLink size={12} />{t('官方来源')}</button></div>
+              <div className="model-license">{t('模型适用腾讯 HY 社区许可（含地域限制）。下载和使用前请阅读')}<button onClick={() => void api.openSource('hy-license').catch(e => setError(errorText(e)))}>{t('模型许可')}</button>。<span>Built with Tencent Hunyuan</span></div>
+            </details>
           </div>
-          <div className="catalog-note">{t("两套模型都不包含在安装包中，也不会自动下载。选择“仅查词”可关闭翻译并释放模型内存，已下载文件会保留。启用时模型空闲一分钟后释放内存。")}</div>
+          <details className="resource-details"><summary>{t('离线运行与资源管理')}</summary><p>{t('两个模型可同时安装，均不会自动下载。AI 仅手动运行，空闲后释放模型内存；关闭基础翻译会保留已下载文件。')}</p></details>
         </>}
 
       </div>

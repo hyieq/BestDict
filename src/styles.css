@@ -37,6 +37,24 @@ textarea::placeholder { color: var(--placeholder); font-size: 15px; }
 .icon-button { display: grid; place-items: center; width: 29px; height: 29px; color: var(--muted); border-radius: 6px; }
 .icon-button:hover { background: var(--hover); color: var(--text); }
 .clear-button { position: absolute; right: 12px; top: 15px; }
+.search-actions { display: flex; align-items: flex-start; gap: 6px; flex-shrink: 0; }
+.search-actions .clear-button { position: static; }
+.search-box textarea { min-width: 0; padding-right: 0; }
+.ai-trigger { display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; border: 1px solid var(--border-strong); border-radius: 7px; padding: 8px 10px; color: var(--accent); font-size: 12px; }
+.ai-trigger:hover { background: var(--tint); border-color: var(--accent-soft); }
+.results-stack { display: flex; flex-direction: column; gap: 12px; flex: 1; min-height: 0; overflow-y: auto; }
+.results-stack.has-ai .result-area { flex: 1 0 260px; }
+.ai-result { flex-shrink: 0; background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 14px 20px; }
+.ai-result-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.ai-result-heading > span { font-size: 10px; color: var(--muted); }
+.ai-collapse { display: flex; align-items: center; gap: 8px; color: var(--accent); font-size: 12px; padding: 3px 0; }
+.ai-controls { display: flex; gap: 12px; align-items: center; justify-content: space-between; margin-top: 14px; }
+.ai-controls label { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 11px; }
+.ai-controls select { color: var(--text); border: 1px solid var(--border); background: var(--page); border-radius: 6px; padding: 5px 8px; }
+.ai-controls .secondary-button { margin: 0; padding: 6px 10px; }
+.ai-translation-text { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 18px; line-height: 1.8; margin: 18px 0; }
+.ai-loading { display: flex; align-items: center; gap: 9px; color: var(--muted); padding: 24px 0; font-size: 12px; }
+.ai-result .error-banner { margin-top: 16px; }
 .search-toolbar { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin: 12px 0 18px; flex-shrink: 0; }
 .active-dictionary select { background: var(--page); color: var(--secondary); border: none; font: inherit; appearance: none; cursor: pointer; padding: 4px 0; }
 .auto-dictionary { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--muted); white-space: nowrap; cursor: pointer; }
@@ -156,6 +174,24 @@ textarea::placeholder { color: var(--placeholder); font-size: 15px; }
 .download-status progress::-webkit-progress-value { background: var(--accent); border-radius: 4px; }
 .download-status.failed { color: var(--error); }
 .engine-card { border: 1px solid var(--border); border-radius: 8px; padding: 14px; background: var(--page); margin-bottom: 10px; }
+.engine-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.engine-heading strong { font-size: 14px; }
+.engine-badge { color: var(--muted); font-size: 11px; flex-shrink: 0; }
+.engine-card.picked .engine-badge { color: var(--accent); }
+.engine-primary { margin-top: 16px; }
+.engine-toggle { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+.engine-toggle span { font-size: 12px; font-weight: 400; color: var(--secondary); }
+.small-download > span { color: var(--muted); padding-left: 5px; }
+.settings-dialog .engine-purpose { margin-top: 12px; color: var(--secondary); font-size: 11px; }
+.resource-details { margin-top: 12px; border-top: 1px solid var(--border); }
+.resource-details > summary { cursor: pointer; color: var(--muted); font-size: 11px; padding: 11px 0; }
+.resource-details > summary:hover { color: var(--accent); }
+.resource-details > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
+.resource-details .engine-actions { margin: 12px 0; }
+.resource-details .resource-card { margin: 0 0 12px; }
+.resource-details > p { margin: 0 0 10px; }
+.license-reminder { display: flex; align-items: center; gap: 8px; margin-top: 12px; font-size: 10px; color: var(--muted); }
+.license-reminder button { color: var(--accent); padding: 0; }
 .engine-select { display: flex; align-items: center; justify-content: space-between; text-align: left; width: 100%; padding: 2px 0; }
 .engine-select:disabled { opacity: .8; }
 .engine-select > svg { color: var(--accent); }

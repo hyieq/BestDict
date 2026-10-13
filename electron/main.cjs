@@ -5,6 +5,7 @@ const { pathToFileURL } = require('node:url');
 const { WorkerClient } = require('./worker.cjs');
 const { ResourceManager } = require('./resources.cjs');
 const { HyTranslator } = require('./hy.cjs');
+const { basicDirection } = require('./query-policy.mjs');
 const english = require('./locales/en.json');
 
 protocol.registerSchemesAsPrivileged([{ scheme: 'bestdict', privileges: { standard: true, secure: true, supportFetchAPI: true } }]);
@@ -128,15 +129,19 @@ function setupIPC() {
     validateText(text, 5000);
     if (!['auto', 'en-zh', 'zh-en', 'es-zh', 'zh-es', 'ja-zh', 'zh-ja', 'ko-zh', 'zh-ko', 'fr-zh', 'zh-fr'].includes(direction) || !Number.isSafeInteger(requestId)) throw new Error('无效的翻译请求。');
     if (settings.translationEngine === 'none') throw new Error('整句翻译尚未开启，请在设置中下载并启用翻译模型。');
-    if (settings.translationEngine === 'hy') {
-      return hy.translate(text, direction, resources.list().find(item => item.id === settings.dictionaryId)?.languageCode || 'en');
-    }
-    if (!['auto', 'en-zh', 'zh-en'].includes(direction)) throw new Error('这个方向需要 HY-MT1.5 引擎，请先在设置中切换。');
+    const route = basicDirection(text, direction);
     // Only the newest request can consume inference time; obsolete work is terminated.
     if (translator.pending.size) translator.stop();
-    return translator.request('translate', { text, direction }).then(result => ({ ...result, engine: 'Argos Translate' }));
+    return translator.request('translate', { text, direction: route }).then(result => ({ ...result, engine: 'Argos Translate' }));
   });
-  handle('translation:cancel', () => { if (translator.pending.size) translator.stop(); hy.cancel(); });
+  handle('translation:cancel', () => { if (translator.pending.size) translator.stop(); });
+  handle('translation:ai', ({ text, direction, requestId }) => {
+    validateText(text, 5000);
+    if (!['auto', 'en-zh', 'zh-en', 'es-zh', 'zh-es', 'ja-zh', 'zh-ja', 'ko-zh', 'zh-ko', 'fr-zh', 'zh-fr'].includes(direction) || !Number.isSafeInteger(requestId)) throw new Error('无效的翻译请求。');
+    if (!resources.hyStatus().ready) throw new Error('请先下载或导入 HY-MT1.5 模型。');
+    return hy.translate(text, direction, 'en');
+  });
+  handle('translation:ai-cancel', () => hy.cancel());
   handle('clipboard:copy', text => { clipboard.writeText(validateText(text, 20000)); return true; });
   handle('settings:get', publicSettings);
   handle('settings:set', changes => {
@@ -163,10 +168,11 @@ function setupIPC() {
       next.dictionaryId = changes.dictionaryId;
     }
     if ('translationEngine' in changes) {
-      if (!['none', 'argos', 'hy'].includes(changes.translationEngine)) throw new Error('翻译引擎无效。');
+      if (changes.translationEngine === 'hy') throw new Error('HY-MT1.5 请通过主界面的 AI 翻译按钮使用。');
+      if (!['none', 'argos'].includes(changes.translationEngine)) throw new Error('翻译引擎无效。');
       if (changes.translationEngine === 'argos' && !resources.argosStatus().ready) throw new Error('请先下载 Argos 中英模型。');
-      if (changes.translationEngine === 'hy' && !resources.hyStatus().ready) throw new Error('请先下载或导入 HY-MT1.5 模型。');
       next.translationEngine = changes.translationEngine;
+      if (resources.argosStatus().ready || next.translationEngine !== settings.translationEngine) next.argosConfigured = true;
     }
     if ('shortcut' in changes) {
       if (typeof changes.shortcut !== 'string' || !/^(?:(?:Control|Command|Alt|Shift|Super)\+){1,3}(?:[A-Z0-9]|F(?:[1-9]|1[0-9]|2[0-4]))$/.test(changes.shortcut)) throw new Error('请使用例如 Control+Shift+D 的快捷键格式。');
@@ -180,7 +186,7 @@ function setupIPC() {
     if (app.isPackaged && ['win32', 'darwin'].includes(process.platform) && !testing && next.startup !== settings.startup) {
       app.setLoginItemSettings({ openAtLogin: next.startup, path: process.execPath, name: 'BestDict', args: ['--hidden'] });
     }
-    if (next.translationEngine !== settings.translationEngine) { translator.stop(); hy.stop(); }
+    if (next.translationEngine !== settings.translationEngine) translator.stop();
     saveSettings(next);
     updateTray();
     return publicSettings();
@@ -190,7 +196,7 @@ function setupIPC() {
     const [dict] = await Promise.allSettled([dictionary.request('status', { database: resources.database(current.dictionaryId) })]);
     return {
       version: app.getVersion(), dictionaryCount: dict.status === 'fulfilled' ? dict.value.count : 0,
-      modelReady: current.translationEngine === 'hy' ? resources.hyStatus().ready : current.translationEngine === 'argos' && resources.argosStatus().ready,
+      modelReady: current.translationEngine === 'argos' && resources.argosStatus().ready,
       dictionaryName: resources.list().find(item => item.id === current.dictionaryId)?.name || '英语 ↔ 中文',
       engine: current.translationEngine,
       error: dict.status === 'rejected' ? dict.reason.message : '',
@@ -198,7 +204,16 @@ function setupIPC() {
     };
   });
   handle('resources:list', () => ({ dictionaries: resources.list(), argos: resources.argosStatus(), hy: resources.hyStatus(), progress: resources.latestProgress }));
-  handle('resources:download', id => { if (id === 'hy-mt1.5') hy.stop(); if (id === 'argos') translator.stop(); return resources.install(id); });
+  async function installResource(id, source) {
+    if (id === 'hy-mt1.5') hy.stop();
+    if (id === 'argos') translator.stop();
+    const result = await resources.install(id, source);
+    if (id === 'argos' && result && resources.argosStatus().ready && !settings.argosConfigured) {
+      saveSettings({ ...settings, translationEngine: 'argos', argosConfigured: true });
+    }
+    return result;
+  }
+  handle('resources:download', id => installResource(id));
   handle('resources:cancel', () => resources.cancel());
   handle('resources:copy-links', id => {
     const links = resources.downloadLinks(id);
@@ -213,9 +228,7 @@ function setupIPC() {
       filters: isArgos ? [{ name: 'Argos model', extensions: ['argosmodel'] }] : id === 'hy-mt1.5' ? [{ name: nativeText('GGUF 模型'), extensions: ['gguf'] }] : [{ name: 'Wiktextract JSONL', extensions: ['gz', 'jsonl', 'json'] }] });
     if (selected.canceled) return null;
     if (isArgos && selected.filePaths.length !== 2) throw new Error('请同时选择中英两个方向的 .argosmodel 文件。');
-    if (id === 'hy-mt1.5') hy.stop();
-    if (isArgos) translator.stop();
-    return resources.install(id, isArgos ? selected.filePaths : selected.filePaths[0]);
+    return installResource(id, isArgos ? selected.filePaths : selected.filePaths[0]);
   });
   handle('resources:source', id => {
     const url = id === 'argos' ? resources.argosSpec.homepage : id === 'hy-mt1.5' ? resources.hySpec.homepage : id === 'hy-license' ? resources.hySpec.licenseUrl : resources.list().find(item => item.id === id)?.homepage;
@@ -243,9 +256,10 @@ else {
     resources = new ResourceManager({ assets, library: process.env.BESTDICT_LIBRARY && testing ? process.env.BESTDICT_LIBRARY : path.join(app.getPath('userData'), 'library'), python,
       script: path.join(root, 'backend', 'worker.py'), progress: data => window?.webContents.send('resources:progress', data) });
     translator = new WorkerClient(python, path.join(root, 'backend', 'worker.py'), resources.argosRoot(), 'translation');
-    if (!['none', 'argos', 'hy'].includes(settings.translationEngine) ||
-      (settings.translationEngine === 'argos' && !resources.argosStatus().ready) ||
-      (settings.translationEngine === 'hy' && !resources.hyStatus().ready)) settings.translationEngine = 'none';
+    // Migrate the old global HY selection to the independent manual AI feature.
+    if (settings.translationEngine === 'hy') settings.translationEngine = resources.argosStatus().ready ? 'argos' : 'none';
+    if (!['none', 'argos'].includes(settings.translationEngine) ||
+      (settings.translationEngine === 'argos' && !resources.argosStatus().ready)) settings.translationEngine = 'none';
     if (!resources.list().some(item => item.id === settings.dictionaryId && item.installed)) settings.dictionaryId = 'ecdict';
     hy = new HyTranslator({ executable: path.join(root, app.isPackaged ? 'llama' : 'runtime/llama', process.platform === 'win32' ? 'llama-server.exe' : 'llama-server'),
       modelFile: () => resources.modelFile(), isReady: () => resources.hyStatus().ready });
@@ -293,4 +307,5 @@ app.on('before-quit', () => { quitting = true; rememberBounds(); dictionary?.sto
 app.on('will-quit', () => { globalShortcut.unregisterAll(); tray?.destroy(); });
 // Native tray interaction is exercised by Playwright in an isolated test process.
 if (testing) globalThis.__bestdictNative = { getTray: () => tray, getTrayMenu: () => trayMenu,
+  getServices: () => ({ resources, translator, hy }),
   readSettings: () => JSON.parse(fs.readFileSync(settingsPath, 'utf8')) };
