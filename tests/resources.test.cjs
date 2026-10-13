@@ -32,7 +32,7 @@ test('optional dictionaries start uninstalled; imports select the right language
   assert.equal(manager.argosStatus().ready, false);
   assert.equal(manager.hyStatus().ready, false);
   assert.deepEqual(manager.downloadLinks('argos'), manager.argosSpec.packages.map(p => p.url));
-  assert.deepEqual(manager.downloadLinks('hy-mt1.5'), [manager.hySpec.url]);
+  assert.deepEqual(manager.downloadLinks('hy-mt2'), [manager.hySpec.url]);
   assert.throws(() => manager.downloadLinks('unknown'), /无效/);
   await assert.rejects(manager.install('not-a-dictionary', fixture), /无效/);
   const cases = [
@@ -64,7 +64,7 @@ test('wrong-language and malformed imports never mark a dictionary installed', a
   fs.writeFileSync(bad, '{malformed');
   await assert.rejects(isolated.install('wiktionary-fr-zh', bad));
   assert.equal(isolated.list().find(item => item.id === 'wiktionary-fr-zh').installed, false);
-  await assert.rejects(isolated.install('hy-mt1.5', bad), /官方/);
+  await assert.rejects(isolated.install('hy-mt2', bad), /官方/);
   assert.equal(isolated.hyStatus().ready, false);
   isolated.cancel();
 });

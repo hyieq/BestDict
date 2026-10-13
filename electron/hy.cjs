@@ -1,3 +1,4 @@
+const { buildPrompt, buildRewritePrompt, translationOptions, defaultStyles } = require('./ai-options.cjs');
 const { spawn } = require('node:child_process');
 const { createServer } = require('node:net');
 const { randomBytes } = require('node:crypto');
@@ -33,7 +34,7 @@ class HyTranslator {
   async start() {
     if (this.starting) return this.starting;
     if (this.process) return;
-    if (!this.isReady()) throw new Error('请先在设置 → 翻译引擎中下载或导入 HY-MT1.5。');
+    if (!this.isReady()) throw new Error('请先在设置 → 翻译引擎中下载或导入 Hy-MT2。');
     const generation = ++this.generation;
     this.starting = this.boot(generation).finally(() => { if (generation === this.generation) this.starting = null; });
     return this.starting;
@@ -68,26 +69,28 @@ class HyTranslator {
         } catch {}
         await new Promise(resolve => setTimeout(resolve, 250));
       }
-      throw new Error('HY-MT1.5 加载超时，请检查模型和可用内存。');
+      throw new Error('Hy-MT2 加载超时，请检查模型和可用内存。');
     } catch (error) { if (this.process === child) this.stop(); throw error; }
   }
 
-  async translate(text, direction, hint) {
+  async translate(text, direction, hint, options = {}) {
     this.cancel();
     clearTimeout(this.idleTimer);
     const controller = new AbortController();
     this.controller = controller;
     const route = translationDirection(text, direction, hint);
-    const key = JSON.stringify([text, route.direction]);
+    const { forceRefresh, ...normalized } = translationOptions(options);
+    const key = JSON.stringify([text, route.direction, normalized]);
     try {
-      if (this.cache.has(key)) return { text: this.cache.get(key), direction: route.direction, targetLanguage: route.targetName, cached: true, engine: 'HY-MT1.5' };
+      if (!forceRefresh && this.cache.has(key)) return { text: this.cache.get(key), direction: route.direction, targetLanguage: route.targetName, cached: true, engine: 'Hy-MT2' };
       await this.start();
       if (controller.signal.aborted) throw new Error('请求已取消');
+      const generate = async content => {
       const response = await fetch(this.url + '/v1/chat/completions', {
         method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${this.key}` },
         signal: AbortSignal.any([controller.signal, AbortSignal.timeout(180_000)]),
-        body: JSON.stringify({ model: 'hy-mt1.5', messages: [{ role: 'user',
-          content: `将以下文本翻译为${route.targetName}，注意只需要输出翻译后的结果，不要额外解释：\n\n${text}` }],
+        body: JSON.stringify({ model: 'hy-mt2', messages: [{ role: 'user',
+          content }],
           temperature: 0.7, top_p: 0.6, top_k: 20, repeat_penalty: 1.05, max_tokens: 4096, stream: false, seed: 42 }),
       });
       if (!response.ok) throw new Error(`本地翻译服务返回 ${response.status}，请缩短文本后重试。`);
@@ -97,9 +100,20 @@ class HyTranslator {
       const translated = choice?.message?.content?.trim();
       if (!translated) throw new Error('模型未返回译文，请重试。');
       if (controller.signal.aborted) throw new Error('请求已取消');
+      return translated;
+      };
+      let translated;
+      if (normalized.polishPrompt && normalized.previousText) {
+        translated = await generate(buildRewritePrompt(text, route.targetName, normalized.previousText, normalized));
+      } else {
+        translated = await generate(buildPrompt(text, route.targetName, {}));
+        if (normalized.stylePrompt && normalized.stylePrompt !== defaultStyles[0].prompt) {
+          translated = await generate(buildRewritePrompt(text, route.targetName, translated, normalized));
+        }
+      }
       this.cache.set(key, translated);
       if (this.cache.size > 128) this.cache.delete(this.cache.keys().next().value);
-      return { text: translated, direction: route.direction, targetLanguage: route.targetName, cached: false, engine: 'HY-MT1.5' };
+      return { text: translated, direction: route.direction, targetLanguage: route.targetName, cached: false, engine: 'Hy-MT2' };
     } finally {
       if (this.controller === controller) {
         this.controller = null;

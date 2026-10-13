@@ -21,7 +21,29 @@ test('uninstalled HY model gives an actionable error without starting a process'
   hy.stop();
 });
 
-const model = path.resolve('.cache/validation-library/hy-mt1.5/HY-MT1.5-1.8B-Q4_K_M.gguf');
+const model = path.resolve('.cache/validation-library/hy-mt2/Hy-MT2-1.8B-Q4_K_M.gguf');
+test('real MT2 styles and polishing preserve the report deadline', { skip: process.env.BESTDICT_REAL_ASSETS !== '1' || !fs.existsSync(model), timeout: 120000 }, async () => {
+  const { defaultStyles } = require('../electron/ai-options.cjs');
+  const hy = new HyTranslator({ executable: path.resolve('runtime/llama/llama-server.exe'), modelFile: () => model, isReady: () => true });
+  const text = 'Please send me the report before Friday. We need it for the meeting.';
+  try {
+    let previous;
+    const outputs = [];
+    for (const style of defaultStyles) {
+      previous = await hy.translate(text, 'en-zh', 'en', { styleName: style.name, stylePrompt: style.prompt });
+      outputs.push(previous.text);
+      assert.match(previous.text, /报告/);
+      assert.match(previous.text, /周五|星期五/);
+      assert.match(previous.text, /会议|开会/);
+      console.log(JSON.stringify({ style: style.name, result: previous.text }));
+    }
+    assert.notEqual(outputs[1], outputs[2], 'Professional and conversational styles should differ on this sample.');
+    const polished = await hy.translate(text, 'en-zh', 'en', { polishPrompt: '像同事聊天一样简洁自然，保留截止时间和用途。', previousText: previous.text });
+    assert.match(polished.text, /周五|星期五/);
+    assert.match(polished.text, /报告/);
+    console.log(JSON.stringify({ polished: polished.text }));
+  } finally { hy.stop(); }
+});
 test('real HY CPU inference, multilingual translation and caching', { skip: process.env.BESTDICT_REAL_ASSETS !== '1' || !fs.existsSync(model), timeout: 120000 }, async () => {
   const hy = new HyTranslator({ executable: path.resolve('runtime/llama/llama-server.exe'), modelFile: () => model, isReady: () => true });
   try {

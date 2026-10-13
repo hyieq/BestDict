@@ -38,11 +38,11 @@ class ResourceManager {
     return id === 'ecdict' ? undefined : path.join(this.library, id, 'dictionary.db');
   }
 
-  modelFile() { return path.join(this.library, 'hy-mt1.5', this.hySpec.filename); }
+  modelFile() { return path.join(this.library, 'hy-mt2', this.hySpec.filename); }
 
   downloadLinks(id) {
     if (id === 'argos') return this.argosSpec.packages.map(p => p.url);
-    if (id === 'hy-mt1.5') return [this.hySpec.url];
+    if (id === 'hy-mt2') return [this.hySpec.url];
     throw new Error('资源无效。');
   }
 
@@ -58,7 +58,7 @@ class ResourceManager {
   }
 
   hyStatus() {
-    const meta = this.metadata('hy-mt1.5');
+    const meta = this.metadata('hy-mt2');
     let size = 0;
     try { size = fs.statSync(this.modelFile()).size; } catch {}
     return { ready: meta?.sha256 === this.hySpec.sha256 && size === this.hySpec.bytes, ...this.hySpec };
@@ -66,9 +66,9 @@ class ResourceManager {
 
   async install(id, sourceFile) {
     if (this.activeJob) throw new Error('已有资源正在安装，请等待完成或取消。');
-    if (!['argos', 'hy-mt1.5'].includes(id) && !this.catalog.dictionaries.some(item => item.id === id)) throw new Error('资源无效。');
+    if (!['argos', 'hy-mt2'].includes(id) && !this.catalog.dictionaries.some(item => item.id === id)) throw new Error('资源无效。');
     if (id === 'argos' && this.argosStatus().ready) throw new Error('Argos 模型已经安装。');
-    if (!['argos', 'hy-mt1.5'].includes(id) && this.list().find(item => item.id === id)?.installed) throw new Error('这个词库已经安装。');
+    if (!['argos', 'hy-mt2'].includes(id) && this.list().find(item => item.id === id)?.installed) throw new Error('这个词库已经安装。');
     this.activeJob = id;
     this.progress({ id, phase: 'starting', message: '正在准备资源…' });
     try {

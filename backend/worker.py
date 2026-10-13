@@ -175,7 +175,7 @@ def dispatch(request):
         library = Path(request['library'])
         if request['resourceId'] == 'argos':
             return install_argos(args.assets, library, emit, request.get('sourceFile'))
-        if request['resourceId'] == 'hy-mt1.5':
+        if request['resourceId'] == 'hy-mt2':
             return install_hy(args.assets, library, emit, request.get('sourceFile'))
         return install_dictionary(args.assets, library, request['resourceId'], emit, request.get('sourceFile'))
     if method == 'status':

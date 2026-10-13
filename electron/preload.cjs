@@ -3,7 +3,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('bestdict', {
   lookup: text => ipcRenderer.invoke('dictionary:lookup', text),
   translate: (text, direction, requestId) => ipcRenderer.invoke('translation:run', { text, direction, requestId }),
-  translateAI: (text, direction, requestId) => ipcRenderer.invoke('translation:ai', { text, direction, requestId }),
+  translateAI: (text, direction, requestId, options) => ipcRenderer.invoke('translation:ai', { text, direction, requestId, options }),
   cancelAITranslation: () => ipcRenderer.invoke('translation:ai-cancel'),
   cancelTranslation: () => ipcRenderer.invoke('translation:cancel'),
   status: () => ipcRenderer.invoke('app:status'),

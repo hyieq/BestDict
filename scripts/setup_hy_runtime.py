@@ -23,7 +23,7 @@ licenses = root / 'resources' / 'licenses'
 licenses.mkdir(exist_ok=True)
 for name, url in [
     ('llama-cpp-LICENSE.txt', 'https://raw.githubusercontent.com/ggml-org/llama.cpp/b11429/LICENSE'),
-    ('HY-MT-LICENSE.txt', f'https://huggingface.co/tencent/HY-MT1.5-1.8B-GGUF/resolve/{model["revision"]}/License.txt'),
+    ('HY-MT-LICENSE.txt', model["licenseUrl"]),
 ]:
-    shutil.copy2(download(name, url), licenses / name)
+    shutil.copy2(download(model['id'] + '-' + name if name == 'HY-MT-LICENSE.txt' else name, url), licenses / name)
 print('Official llama.cpp CPU runtime is ready; weights are not bundled.')

@@ -1,6 +1,6 @@
 {
   "name": "bestdict",
-  "version": "0.4.4",
+  "version": "0.4.7",
   "private": true,
   "description": "A quiet, offline-first bilingual desktop dictionary",
   "author": "BestDict",
@@ -15,7 +15,8 @@
     "test:desktop": "node scripts/smoke.mjs",
     "test:translation-ui": "node scripts/translation-ui-smoke.mjs",
     "test:multilingual": "node scripts/multilingual-smoke.mjs",
-    "package": "npm run build && node scripts/package.mjs"
+    "package": "npm run build && node scripts/package.mjs",
+    "test:ai-styles": "node scripts/ai-style-smoke.mjs"
   },
   "dependencies": {
     "lucide-react": "^0.468.0",

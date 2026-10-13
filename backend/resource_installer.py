@@ -148,16 +148,16 @@ def install_dictionary(assets, library, resource_id, emit, source_file=None):
 
 def install_hy(assets, library, emit, source_file=None):
     spec = json.loads((assets / 'hy-model.json').read_text(encoding='utf-8'))
-    folder = library / 'hy-mt1.5'
+    folder = library / 'hy-mt2'
     folder.mkdir(parents=True, exist_ok=True)
     output = folder / spec['filename']
     temporary = folder / (spec['filename'] + '.incoming')
-    resource_id = 'hy-mt1.5'
+    resource_id = 'hy-mt2'
     try:
         if source_file:
             source = Path(source_file)
             if source.stat().st_size != spec['bytes']:
-                raise ValueError('请选择官方 HY-MT1.5-1.8B-Q4_K_M.gguf 文件。')
+                raise ValueError('请选择官方 Hy-MT2-1.8B-Q4_K_M.gguf 文件。')
             emit({'id': resource_id, 'phase': 'verifying', 'message': '正在校验本地模型…'})
             shutil.copyfile(source, temporary)
         else:
@@ -168,7 +168,7 @@ def install_hy(assets, library, emit, source_file=None):
         temporary.replace(output)
         shutil.copy2(assets / 'licenses' / 'HY-MT-LICENSE.txt', folder / 'LICENSE.txt')
         (folder / 'metadata.json').write_text(json.dumps({'sha256': spec['sha256'], 'revision': spec['revision'], 'filename': spec['filename']}, indent=2), encoding='utf-8')
-        emit({'id': resource_id, 'phase': 'complete', 'message': 'HY-MT1.5 已就绪，可切换使用。'})
+        emit({'id': resource_id, 'phase': 'complete', 'message': 'Hy-MT2 已就绪，可切换使用。'})
         return {'ready': True}
     finally:
         temporary.unlink(missing_ok=True)

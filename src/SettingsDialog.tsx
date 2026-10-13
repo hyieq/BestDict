@@ -60,7 +60,7 @@ export default function SettingsDialog({ settings, status, catalog, initialTab, 
       const result = local ? await api.importResource(id) : await api.downloadResource(id);
       onRefresh();
       if (result && mounted.current) {
-        if (id === 'argos' || id === 'hy-mt1.5') {
+        if (id === 'argos' || id === 'hy-mt2') {
           const current = await api.getSettings();
           if (mounted.current) { setDraft(previous => ({ ...previous, translationEngine: current.translationEngine })); onSaved(current); }
         } else setDraft(previous => ({ ...previous, dictionaryId: id }));
@@ -75,7 +75,7 @@ export default function SettingsDialog({ settings, status, catalog, initialTab, 
     return t('已安装 · 未启用');
   }
 
-  async function copyLinks(id: 'argos' | 'hy-mt1.5') {
+  async function copyLinks(id: 'argos' | 'hy-mt2') {
     setError('');
     try {
       await api.copyDownloadLinks(id);
@@ -86,7 +86,7 @@ export default function SettingsDialog({ settings, status, catalog, initialTab, 
     } catch (e) { if (mounted.current) setError(errorText(e)); }
   }
 
-  function copyButton(id: 'argos' | 'hy-mt1.5') {
+  function copyButton(id: 'argos' | 'hy-mt2') {
     return <button className="secondary-button" onClick={() => void copyLinks(id)}>
       {copiedLinks === id ? <Check size={13} /> : <Copy size={13} />}
       {copiedLinks === id ? t(id === 'argos' ? '已复制两个链接' : '已复制') : t('复制下载链接')}
@@ -157,15 +157,15 @@ export default function SettingsDialog({ settings, status, catalog, initialTab, 
             </details>
           </div>
           <div className="engine-card" data-testid="engine-hy">
-            <div className="engine-heading"><div><strong>{t('AI 翻译')}</strong><p>HY-MT1.5 · 1.8B · {t('多语言')}</p></div><span className="engine-badge">{catalog?.hy.ready ? t('已安装') : t('未安装')}</span></div>
+            <div className="engine-heading"><div><strong>{t('AI 翻译')}</strong><p>Hy-MT2 · 1.8B · {t('多语言')}</p></div><span className="engine-badge">{catalog?.hy.ready ? t('已安装') : t('未安装')}</span></div>
             <p className="engine-purpose">{t('点击输入框右侧的 AI 翻译时运行，不替代 Argos。')}</p>
-            <div className="engine-primary">{catalog?.hy.ready ? <span className="installed-label"><Check size={13} />{t('可通过 AI 翻译按钮使用')}</span> : <button className="small-download" disabled={!!job || installPending} onClick={() => void install('hy-mt1.5', false)}><Download size={13} />{t('下载模型')}<span>1.13 GB</span></button>}</div>
-            {downloadStatus('hy-mt1.5')}
+            <div className="engine-primary">{catalog?.hy.ready ? <span className="installed-label"><Check size={13} />{t('可通过 AI 翻译按钮使用')}</span> : <button className="small-download" disabled={!!job || installPending} onClick={() => void install('hy-mt2', false)}><Download size={13} />{t('下载模型')}<span>1.13 GB</span></button>}</div>
+            {downloadStatus('hy-mt2')}
             <div className="license-reminder"><button onClick={() => void api.openSource('hy-license').catch(e => setError(errorText(e)))}>{t('模型许可')}</button><span>{t('使用前请阅读')}</span></div>
             <details className="resource-details"><summary>{t('下载选项、运行要求与许可')}</summary>
               <p>{t('CPU 本地运行，推荐至少 8 GB 内存。模型约 1.13 GB，首次使用需要下载或导入官方 GGUF 文件。')}</p>
-              <div className="engine-actions"><button className="secondary-button" disabled={!!job || installPending} onClick={() => void install('hy-mt1.5', true)}><Upload size={13} />{t('导入 GGUF')}</button>{copyButton('hy-mt1.5')}<button className="source-link" onClick={() => void api.openSource('hy-mt1.5').catch(e => setError(errorText(e)))}><ExternalLink size={12} />{t('官方来源')}</button></div>
-              <div className="model-license">{t('模型适用腾讯 HY 社区许可（含地域限制）。下载和使用前请阅读')}<button onClick={() => void api.openSource('hy-license').catch(e => setError(errorText(e)))}>{t('模型许可')}</button>。<span>Built with Tencent Hunyuan</span></div>
+              <div className="engine-actions"><button className="secondary-button" disabled={!!job || installPending} onClick={() => void install('hy-mt2', true)}><Upload size={13} />{t('导入 GGUF')}</button>{copyButton('hy-mt2')}<button className="source-link" onClick={() => void api.openSource('hy-mt2').catch(e => setError(errorText(e)))}><ExternalLink size={12} />{t('官方来源')}</button></div>
+              <div className="model-license">{t('模型采用 Apache-2.0 许可，详情请阅读')}<button onClick={() => void api.openSource('hy-license').catch(e => setError(errorText(e)))}>{t('模型许可')}</button>。<span>Built with Tencent Hunyuan</span></div>
             </details>
           </div>
           <details className="resource-details"><summary>{t('离线运行与资源管理')}</summary><p>{t('两个模型可同时安装，均不会自动下载。AI 仅手动运行，空闲后释放模型内存；关闭基础翻译会保留已下载文件。')}</p></details>

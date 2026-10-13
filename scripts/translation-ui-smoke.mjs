@@ -67,7 +67,8 @@ try {
   await input.fill('qzx imaginary phrase');
   await page.getByText('暂未找到这个词条').waitFor();
   assert.deepEqual(await calls(), beforePhrase);
-  await page.getByRole('checkbox', { name: '自动匹配词库' }).uncheck();
+  await page.getByRole('checkbox', { name: '自动匹配词库' }).click();
+  await page.waitForFunction(() => !document.querySelector('input[aria-label="自动匹配词库"]').checked);
   await page.getByRole('combobox', { name: '选择当前词库' }).selectOption('ecdict');
   await page.waitForTimeout(650);
   assert.equal((await calls()).ai, 0);
@@ -75,13 +76,14 @@ try {
   await page.getByTestId('translation-result').waitFor();
   await page.getByRole('combobox', { name: '翻译方向' }).selectOption('en-zh');
   assert.equal(await page.getByRole('checkbox', { name: '自动匹配词库' }).isChecked(), false);
-  await page.getByRole('checkbox', { name: '自动匹配词库' }).check();
+  await page.getByRole('checkbox', { name: '自动匹配词库' }).click();
+  await page.waitForFunction(() => document.querySelector('input[aria-label="自动匹配词库"]').checked);
   assert.equal(await page.getByRole('combobox', { name: '翻译方向' }).inputValue(), 'en-zh');
   await page.getByTestId('translation-result').waitFor();
   await page.getByRole('button', { name: 'AI 翻译', exact: true }).click();
   await page.getByText('AI 正在翻译，首次使用需要加载模型…').waitFor();
   assert.equal((await calls()).ai, 1);
-  await desktop.evaluate(() => { const pending = globalThis.__routing.pending; globalThis.__routing.pending = null; pending.resolve({ text: 'AI 译文：请在周五之前把报告发给我。', direction: 'en-zh', engine: 'HY-MT1.5', cached: false }); });
+  await desktop.evaluate(() => { const pending = globalThis.__routing.pending; globalThis.__routing.pending = null; pending.resolve({ text: 'AI 译文：请在周五之前把报告发给我。', direction: 'en-zh', engine: 'Hy-MT2', cached: false }); });
   await page.getByTestId('ai-translation-result').waitFor();
   assert.equal(await page.getByTestId('translation-result').count(), 1, 'The Argos result remains alongside AI.');
   assert.equal(await page.evaluate(() => window.bestdict.getSettings().then(s => s.translationEngine)), 'argos');

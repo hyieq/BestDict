@@ -4,6 +4,7 @@ const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 const { WorkerClient } = require('./worker.cjs');
 const { ResourceManager } = require('./resources.cjs');
+const { defaultStyles, validateStyles, translationOptions } = require('./ai-options.cjs');
 const { HyTranslator } = require('./hy.cjs');
 const { basicDirection } = require('./query-policy.mjs');
 const english = require('./locales/en.json');
@@ -16,7 +17,7 @@ let quitting = false;
 let settings;
 let shortcutError = '';
 let settingsPath;
-const defaults = { startup: true, shortcut: testing ? (process.env.BESTDICT_TEST_SHORTCUT || 'Control+Shift+D') : 'Control+Shift+D', theme: 'system', locale: 'zh-CN', trayHintSeen: false, bounds: null, dictionaryId: 'ecdict', autoDictionary: true, translationEngine: 'none' };
+const defaults = { aiStylesVersion: 0, aiStyles: defaultStyles, aiStyleId: 'basic', startup: true, shortcut: testing ? (process.env.BESTDICT_TEST_SHORTCUT || 'Control+Shift+D') : 'Control+Shift+D', theme: 'system', locale: 'zh-CN', trayHintSeen: false, bounds: null, dictionaryId: 'ecdict', autoDictionary: true, translationEngine: 'none' };
 const root = app.isPackaged ? process.resourcesPath : path.join(__dirname, '..');
 const assets = app.isPackaged ? path.join(root, 'assets') : path.join(root, 'resources');
 
@@ -28,6 +29,12 @@ function loadSettings() {
     catch { settings = { ...defaults }; }
   }
   if (typeof settings.autoDictionary !== 'boolean') settings.autoDictionary = true;
+  try { settings.aiStyles = validateStyles(settings.aiStyles); } catch { settings.aiStyles = defaultStyles; }
+  if (settings.aiStylesVersion < 2) {
+    if (!settings.aiStyles.some(s => s.id === 'concise') && settings.aiStyles.length < 30) settings.aiStyles = [...settings.aiStyles, defaultStyles.find(s => s.id === 'concise')];
+    settings.aiStylesVersion = 2;
+  }
+  if (!settings.aiStyles.some(s => s.id === settings.aiStyleId)) settings.aiStyleId = settings.aiStyles[0].id;
   if (testing) settings = { ...defaults };
   if (!['zh-CN', 'en'].includes(settings.locale)) settings.locale = 'zh-CN';
 }
@@ -135,11 +142,11 @@ function setupIPC() {
     return translator.request('translate', { text, direction: route }).then(result => ({ ...result, engine: 'Argos Translate' }));
   });
   handle('translation:cancel', () => { if (translator.pending.size) translator.stop(); });
-  handle('translation:ai', ({ text, direction, requestId }) => {
+  handle('translation:ai', ({ text, direction, requestId, options }) => {
     validateText(text, 5000);
     if (!['auto', 'en-zh', 'zh-en', 'es-zh', 'zh-es', 'ja-zh', 'zh-ja', 'ko-zh', 'zh-ko', 'fr-zh', 'zh-fr'].includes(direction) || !Number.isSafeInteger(requestId)) throw new Error('无效的翻译请求。');
-    if (!resources.hyStatus().ready) throw new Error('请先下载或导入 HY-MT1.5 模型。');
-    return hy.translate(text, direction, 'en');
+    if (!resources.hyStatus().ready) throw new Error('请先下载或导入 Hy-MT2 模型。');
+    return hy.translate(text, direction, 'en', translationOptions(options));
   });
   handle('translation:ai-cancel', () => hy.cancel());
   handle('clipboard:copy', text => { clipboard.writeText(validateText(text, 20000)); return true; });
@@ -147,6 +154,9 @@ function setupIPC() {
   handle('settings:set', changes => {
     if (!changes || typeof changes !== 'object') throw new Error('设置格式无效。');
     const next = { ...settings };
+    if ('aiStyles' in changes) next.aiStyles = validateStyles(changes.aiStyles);
+    if ('aiStyleId' in changes) next.aiStyleId = changes.aiStyleId;
+    if (!next.aiStyles.some(s => s.id === next.aiStyleId)) next.aiStyleId = next.aiStyles[0].id;
     if ('autoDictionary' in changes) {
       if (typeof changes.autoDictionary !== 'boolean') throw new Error('自动匹配设置无效。');
       next.autoDictionary = changes.autoDictionary;
@@ -168,7 +178,7 @@ function setupIPC() {
       next.dictionaryId = changes.dictionaryId;
     }
     if ('translationEngine' in changes) {
-      if (changes.translationEngine === 'hy') throw new Error('HY-MT1.5 请通过主界面的 AI 翻译按钮使用。');
+      if (changes.translationEngine === 'hy') throw new Error('Hy-MT2 请通过主界面的 AI 翻译按钮使用。');
       if (!['none', 'argos'].includes(changes.translationEngine)) throw new Error('翻译引擎无效。');
       if (changes.translationEngine === 'argos' && !resources.argosStatus().ready) throw new Error('请先下载 Argos 中英模型。');
       next.translationEngine = changes.translationEngine;
@@ -205,7 +215,7 @@ function setupIPC() {
   });
   handle('resources:list', () => ({ dictionaries: resources.list(), argos: resources.argosStatus(), hy: resources.hyStatus(), progress: resources.latestProgress }));
   async function installResource(id, source) {
-    if (id === 'hy-mt1.5') hy.stop();
+    if (id === 'hy-mt2') hy.stop();
     if (id === 'argos') translator.stop();
     const result = await resources.install(id, source);
     if (id === 'argos' && result && resources.argosStatus().ready && !settings.argosConfigured) {
@@ -221,17 +231,17 @@ function setupIPC() {
     return links.length;
   });
   handle('resources:import', async id => {
-    if (!['argos', 'hy-mt1.5'].includes(id) && !resources.catalog.dictionaries.some(item => item.id === id)) throw new Error('未知资源。');
+    if (!['argos', 'hy-mt2'].includes(id) && !resources.catalog.dictionaries.some(item => item.id === id)) throw new Error('未知资源。');
     const isArgos = id === 'argos';
-    const selected = await dialog.showOpenDialog(window, { title: nativeText(isArgos ? '同时选择中英两个 Argos 模型包' : id === 'hy-mt1.5' ? '导入官方 HY-MT1.5 Q4_K_M 模型' : '导入中文版 Wiktextract 数据'),
+    const selected = await dialog.showOpenDialog(window, { title: nativeText(isArgos ? '同时选择中英两个 Argos 模型包' : id === 'hy-mt2' ? '导入官方 Hy-MT2 Q4_K_M 模型' : '导入中文版 Wiktextract 数据'),
       properties: isArgos ? ['openFile', 'multiSelections'] : ['openFile'],
-      filters: isArgos ? [{ name: 'Argos model', extensions: ['argosmodel'] }] : id === 'hy-mt1.5' ? [{ name: nativeText('GGUF 模型'), extensions: ['gguf'] }] : [{ name: 'Wiktextract JSONL', extensions: ['gz', 'jsonl', 'json'] }] });
+      filters: isArgos ? [{ name: 'Argos model', extensions: ['argosmodel'] }] : id === 'hy-mt2' ? [{ name: nativeText('GGUF 模型'), extensions: ['gguf'] }] : [{ name: 'Wiktextract JSONL', extensions: ['gz', 'jsonl', 'json'] }] });
     if (selected.canceled) return null;
     if (isArgos && selected.filePaths.length !== 2) throw new Error('请同时选择中英两个方向的 .argosmodel 文件。');
     return installResource(id, isArgos ? selected.filePaths : selected.filePaths[0]);
   });
   handle('resources:source', id => {
-    const url = id === 'argos' ? resources.argosSpec.homepage : id === 'hy-mt1.5' ? resources.hySpec.homepage : id === 'hy-license' ? resources.hySpec.licenseUrl : resources.list().find(item => item.id === id)?.homepage;
+    const url = id === 'argos' ? resources.argosSpec.homepage : id === 'hy-mt2' ? resources.hySpec.homepage : id === 'hy-license' ? resources.hySpec.licenseUrl : resources.list().find(item => item.id === id)?.homepage;
     if (!url) throw new Error('无效的来源。');
     return shell.openExternal(url);
   });

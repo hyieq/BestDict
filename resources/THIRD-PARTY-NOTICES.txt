@@ -53,10 +53,10 @@ They retain the Wiktionary CC-BY-SA / GFDL data licenses and attribution.
 Catalog details: dictionaries.json; installed resources contain ATTRIBUTION.txt.
 https://kaikki.org/dictionary/#copyright-and-license
 
-HY-MT1.5-1.8B (optional official Q4_K_M GGUF model)
-Copyright Tencent. Tencent HY Community License Agreement, NOT the app's MIT license.
-https://huggingface.co/tencent/HY-MT1.5-1.8B
-https://huggingface.co/tencent/HY-MT1.5-1.8B-GGUF
+Hy-MT2-1.8B (optional official Q4_K_M GGUF model)
+Copyright Tencent. Apache License 2.0, separate from the app's MIT license.
+https://huggingface.co/tencent/Hy-MT2-1.8B
+https://huggingface.co/tencent/Hy-MT2-1.8B-GGUF
 Full model terms are preserved in licenses/HY-MT-LICENSE.txt.
 The model weights are NOT bundled or automatically downloaded.
 Built with Tencent Hunyuan.

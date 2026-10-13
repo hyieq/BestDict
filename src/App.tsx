@@ -1,3 +1,4 @@
+import AIStylePicker from './AIStylePicker';
 import { useEffect, useRef, useState } from 'react';
 import { ArrowDown, ArrowLeftRight, ArrowRight, BookOpen, Check, ChevronDown, Copy, Globe2, Keyboard, LoaderCircle, Minus, Search, Settings2, Sparkles, X } from 'lucide-react';
 import SettingsDialog from './SettingsDialog';
@@ -34,6 +35,8 @@ export default function App() {
   const [catalog, setCatalog] = useState<ResourceCatalog | null>(null);
   const [copied, setCopied] = useState(false);
   const [aiCopied, setAICopied] = useState(false);
+  const [polishPrompt, setPolishPrompt] = useState('');
+  useEffect(() => setPolishPrompt(''), [query]);
   const [composing, setComposing] = useState(false);
   const [runNonce, setRunNonce] = useState(0);
   const [expanded, setExpanded] = useState(false);
@@ -44,7 +47,7 @@ export default function App() {
   const statusRevision = useRef(0);
   const immediateRun = useRef(false);
   const currentEntry = lookup.entries[selected];
-  const ai = useAITranslation(query);
+  const ai = useAITranslation(query, settings?.aiStyles.find(s => s.id === settings.aiStyleId));
   const activeDictionary = catalog?.dictionaries.find(item => item.id === settings?.dictionaryId);
   const resultDictionary = catalog?.dictionaries.find(item => item.id === (currentEntry?.dictionaryId || lookup.dictionaryId || settings?.dictionaryId));
   const multilingualDictionary = !!settings?.dictionaryId && settings.dictionaryId !== 'ecdict';
@@ -221,18 +224,27 @@ export default function App() {
         </div>
       </header>
       <section className="workspace">
+        <div className="search-row">
         <div className="search-box">
-          <Search size={21} className="search-icon" />
           <textarea ref={input} aria-label={t("输入单词或句子")} placeholder={sentenceEnabled ? t("输入单词、词组，或粘贴一整句话…") : t("输入单词或词组，即时查词…")} value={query} maxLength={5000} rows={2}
             onChange={e => changeQuery(e.target.value)}
             onCompositionStart={() => { invalidate(); setComposing(true); }}
             onCompositionEnd={() => setComposing(false)} spellCheck={false} />
           <div className="search-actions">
-            <button className="ai-trigger" disabled={!query.trim() || composing} title={t(aiReady ? '手动调用 HY，不影响日常查词和句子翻译。' : '安装 HY 后可使用 AI 翻译。')} onClick={() => { setAICopied(false); if (ai.busy) ai.cancel(); else if (!aiReady) openSettings('engines'); else void ai.run(); }}>
-              {ai.busy ? <LoaderCircle size={15} className="spin" /> : <Sparkles size={15} />}{t(ai.busy ? '取消 AI 翻译' : 'AI 翻译')}
-            </button>
             {query && <button className="icon-button clear-button" title={t("清空")} aria-label={t("清空")} onClick={() => setQueryAndFocus('')}><X size={16} /></button>}
+            <button className="translate-trigger" aria-keyshortcuts="Control+Enter" disabled={!query.trim() || busy || composing} onClick={translateNow}>{busy ? <LoaderCircle size={15} className="spin" /> : <Search size={15} />}{t("翻译")}<span>Ctrl ↵</span></button>
           </div>
+        </div>
+        <div className="ai-button-group"><button className="ai-trigger" disabled={!query.trim() || composing} title={t(aiReady ? '手动调用 HY，不影响日常查词和句子翻译。' : '安装 HY 后可使用 AI 翻译。')} onClick={() => { setAICopied(false); if (ai.busy) ai.cancel(); else if (!aiReady) openSettings('engines'); else void ai.run(); }}>
+          {ai.busy ? <LoaderCircle size={24} className="spin" /> : <Sparkles size={24} />}{t(ai.busy ? '取消 AI 翻译' : 'AI 翻译')}
+        </button><AIStylePicker settings={settings} onSaved={next => {
+          const previous = settings?.aiStyles.find(s => s.id === settings.aiStyleId);
+          const selectedStyle = next.aiStyles.find(s => s.id === next.aiStyleId);
+          setSettings(next);
+          if (ai.result && selectedStyle && (selectedStyle.id !== previous?.id || selectedStyle.prompt !== previous?.prompt)) {
+            setAICopied(false); void ai.run('', true, selectedStyle);
+          }
+        }} /></div>
         </div>
         <div className="search-toolbar">
           <div className="segmented" aria-label={t("查询模式")}>{([['auto', t("自动")], ['dictionary', t("查词")], ['translate', t("句子翻译")]] as const).map(([value, label]) =>
@@ -244,7 +256,6 @@ export default function App() {
             <option value="auto">{t("自动识别语言")}</option><option value="en-zh">{t("英文 → 中文")}</option><option value="zh-en">{t("中文 → 英文")}</option>
             </select><ChevronDown size={12} /></div>}
           {mode !== 'translate' && <label className="auto-dictionary" title={t("在已安装词库中自动匹配；关闭后只查当前词库。")}>{t("自动匹配词库")}<input type="checkbox" aria-label={t("自动匹配词库")} checked={settings?.autoDictionary ?? true} onChange={e => { void quickSettings({ autoDictionary: e.target.checked }); }} /></label>}
-          <button className="translate-trigger" disabled={!query.trim() || busy} onClick={translateNow}>{busy ? <LoaderCircle size={14} className="spin" /> : <ArrowRight size={14} />}{t("翻译")}<span>Ctrl ↵</span></button>
         </div>
         <button className={`translation-engine-status ${sentenceEnabled ? 'enabled' : ''}`} data-testid="translation-engine-status" onClick={() => openSettings('engines')}><ArrowLeftRight size={13} /><span>{t('基础句子翻译：')}{sentenceEnabled ? 'Argos Translate' : t('未开启')}</span><span>{sentenceEnabled ? t('已启用') : t('设置')}<ChevronDown size={12} /></span></button>
         {(error || status?.error || status?.shortcutError) && <div className="error-banner" role="alert">{t(error || status?.error || status?.shortcutError || '')}</div>}
@@ -289,12 +300,12 @@ export default function App() {
           </>}
         </section>
         {ai.visible && <section ref={aiPanel} className="ai-result" data-testid="ai-panel" aria-label={t('AI 译文')} aria-live="polite" aria-busy={ai.busy}>
-          <div className="ai-result-heading"><button className="ai-collapse" aria-expanded={ai.expanded} onClick={() => ai.setExpanded(!ai.expanded)}><Sparkles size={15} />{t('AI 译文')}<ChevronDown size={14} className={ai.expanded ? 'rotated' : ''} /></button><span>HY-MT1.5</span></div>
+          <div className="ai-result-heading"><button className="ai-collapse" aria-expanded={ai.expanded} onClick={() => ai.setExpanded(!ai.expanded)}><Sparkles size={15} />{t('AI 译文')}<ChevronDown size={14} className={ai.expanded ? 'rotated' : ''} /></button><span>Hy-MT2</span></div>
           {ai.expanded && <div className="ai-result-body">
             <div className="ai-controls"><label>{t('AI 翻译方向')}<select aria-label={t('AI 翻译方向')} value={ai.direction} onChange={e => ai.setDirection(e.target.value as Direction)}>
               {(['auto', 'en-zh', 'zh-en', 'es-zh', 'zh-es', 'ja-zh', 'zh-ja', 'ko-zh', 'zh-ko', 'fr-zh', 'zh-fr'] as const).map((value, index) => <option key={value} value={value}>{t(['自动识别语言', '英文 → 中文', '中文 → 英文', '西班牙语 → 中文', '中文 → 西班牙语', '日语 → 中文', '中文 → 日语', '韩语 → 中文', '中文 → 韩语', '法语 → 中文', '中文 → 法语'][index])}</option>)}
-            </select></label><button className="secondary-button" onClick={() => { setAICopied(false); if (ai.busy) ai.cancel(); else void ai.run(); }}>{t(ai.busy ? '取消' : '重新翻译')}</button></div>
-            {ai.busy ? <div className="ai-loading"><LoaderCircle size={17} className="spin" />{t('AI 正在翻译，首次使用需要加载模型…')}</div> : ai.error ? <div className="error-banner" role="alert">{t(ai.error)}</div> : ai.result ? <><p className="ai-translation-text" data-testid="ai-translation-result">{ai.result.text}</p><div className="translation-meta"><span>{t('本地 AI 翻译')}{ai.result.cached ? t(' · 已缓存') : ''}</span><button className="copy-button" onClick={() => { if (ai.result) void api.copy(ai.result.text).then(() => setAICopied(true)).catch(e => setError(errorText(e))); }}>{aiCopied ? <Check size={14} /> : <Copy size={14} />}{t(aiCopied ? '已复制' : '复制 AI 译文')}</button></div></> : <p className="quality-note">{t('已取消，可点击重新翻译。')}</p>}
+            </select></label><button className="secondary-button" onClick={() => { setAICopied(false); if (ai.busy) ai.cancel(); else void ai.run('', true); }}>{t(ai.busy ? '取消' : '重新翻译')}</button></div>
+            {ai.busy && <div className="ai-loading"><LoaderCircle size={17} className="spin" />{t('AI 正在翻译，首次使用需要加载模型…')}</div>}{ai.error && <div className="error-banner" role="alert">{t(ai.error)}</div>}{ai.notice && <p className="quality-note" role="status">{t(ai.notice)}</p>}{ai.result ? <><p className="ai-translation-text" data-testid="ai-translation-result">{ai.result.text}</p><div className="translation-meta"><span>{t('本地 AI 翻译')} · {t(ai.result.styleName || '基本')}{ai.result.polished ? ' · ' + t('已润色') : ''}{ai.result.cached ? t(' · 已缓存') : ''}</span><button className="copy-button" onClick={() => { if (ai.result) void api.copy(ai.result.text).then(() => setAICopied(true)).catch(e => setError(errorText(e))); }}>{aiCopied ? <Check size={14} /> : <Copy size={14} />}{t(aiCopied ? '已复制' : '复制 AI 译文')}</button></div><div className="ai-polish"><label htmlFor="polish-prompt">{t('自定义润色提示词')}</label><input type="text" id="polish-prompt" value={polishPrompt} maxLength={1000} placeholder={t('例如：更像日常聊天，简短一点，保留关键细节。')} onChange={e => setPolishPrompt(e.target.value)} /><button className="secondary-button" disabled={ai.busy || !polishPrompt.trim()} onClick={() => { setAICopied(false); void ai.run(polishPrompt.trim(), true); }}>{t('润色并刷新')}</button></div></> : !ai.busy && !ai.error && <p className="quality-note">{t('已取消，可点击重新翻译。')}</p>}
           </div>}
         </section>}
         </div>
