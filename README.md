@@ -1,7 +1,7 @@
 <div align="center">
   <img src="docs/assets/logo.png" width="80" height="80" alt="BestDict logo" />
   <h1>BestDict</h1>
-  <p><strong>随时查词，专注表达。</strong></p>
+  <p><strong>专注本地AI查词翻译<br/>纯净、无广告、无订阅</strong></p>
   <p>A quiet, offline-first desktop dictionary & translator.</p>
   <p>
     <img src="https://img.shields.io/badge/version-0.4.3-0067b8" alt="Version 0.4.3" />
