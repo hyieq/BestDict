@@ -1,0 +1,145 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  windows:
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: windows-2022
+    timeout-minutes: 45
+    permissions:
+      contents: write
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      PYTHONUTF8: '1'
+      RELEASE_TAG: ${{ github.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify release version
+        run: |
+          $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          if ($env:RELEASE_TAG -notmatch '^v\d+\.\d+\.\d+$' -or $env:RELEASE_TAG -ne "v$version") {
+            throw "Tag $env:RELEASE_TAG must match package.json version v$version."
+          }
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - uses: astral-sh/setup-uv@v7
+
+      - name: Install Node dependencies and Electron
+        run: npm ci --registry=https://registry.npmjs.org
+
+      - name: Prepare Python environment
+        run: |
+          uv venv .venv --python python
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          uv pip install --python .venv/Scripts/python.exe ctranslate2==4.6.0 sentencepiece==0.2.1 setuptools==80.9.0 pillow==12.3.0
+
+      - name: Prepare offline dictionary and embedded Python
+        run: .venv/Scripts/python.exe scripts/setup_assets.py
+
+      - name: Prepare CPU inference runtime
+        run: .venv/Scripts/python.exe scripts/setup_hy_runtime.py
+
+      - name: Bundle Visual C++ runtime
+        run: .venv/Scripts/python.exe scripts/bundle_vc_runtime.py
+
+      - name: Preserve dependency licenses
+        run: .venv/Scripts/python.exe scripts/copy_licenses.py
+
+      - name: Prepare installer tools
+        run: .venv/Scripts/python.exe scripts/setup_build_tools.py
+
+      - name: Test offline resources
+        run: npm test
+
+      - name: Build Windows x64 installer
+        run: npm run package
+
+      - name: Test packaged desktop app
+        run: |
+          $env:BESTDICT_TEST_EXE = Join-Path $PWD 'release/win-unpacked/BestDict.exe'
+          npm run test:desktop
+
+      - name: Prepare checksum and release notes
+        run: |
+          $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          $installer = Get-Item "release/BestDict-$version-x64-Setup.exe"
+          $hash = (Get-FileHash $installer.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  $($installer.Name)" | Set-Content "$($installer.FullName).sha256" -Encoding utf8
+          $changelog = Get-Content CHANGELOG.md -Raw
+          $pattern = '(?ms)^## ' + [regex]::Escape($version) + '\r?\n(.*?)(?=^## |\z)'
+          $changes = [regex]::Match($changelog, $pattern)
+          if (-not $changes.Success) { throw "Missing CHANGELOG entry for $version." }
+          $notes = @(
+            "BestDict $version · Windows x64",
+            '',
+            '下载下方 Setup.exe 并运行安装。内置 770,611 条 ECDICT 词条和必要运行时，无需另装 Python。',
+            '',
+            '默认仅查词；Argos / HY 整句翻译模型及扩展词库需在设置中按需下载或导入。',
+            '',
+            '## 更新内容',
+            '',
+            $changes.Groups[1].Value.Trim(),
+            '',
+            '安装包经过离线资源测试及打包后的桌面测试，并提供 SHA-256 校验文件。'
+          )
+          $notes -join "`n" | Set-Content release/release-notes.md -Encoding utf8
+
+      - name: Save installer artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: BestDict-${{ github.ref_name }}-windows-x64
+          path: |
+            release/*-Setup.exe
+            release/*.sha256
+          if-no-files-found: error
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          $installer = (Get-Item "release/BestDict-$version-x64-Setup.exe").FullName
+          $checksum = "$installer.sha256"
+          $existing = gh release view $env:RELEASE_TAG --json isDraft 2>$null
+          if ($LASTEXITCODE -eq 0) {
+            if (-not ($existing | ConvertFrom-Json).isDraft) {
+              throw "Release $env:RELEASE_TAG is already published. Use a new version tag."
+            }
+            gh release upload $env:RELEASE_TAG $installer $checksum --clobber
+          } else {
+            gh release create $env:RELEASE_TAG $installer $checksum --verify-tag --draft --title "BestDict $env:RELEASE_TAG" --notes-file release/release-notes.md
+          }
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          gh release edit $env:RELEASE_TAG --draft=false --latest --title "BestDict $env:RELEASE_TAG" --notes-file release/release-notes.md
+
+      - name: Save desktop test evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: BestDict-${{ github.ref_name }}-test-results
+          path: test-results/
+          if-no-files-found: ignore

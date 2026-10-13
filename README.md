@@ -226,6 +226,25 @@ CI 仅构建前端并执行小型 fixture 测试，不自动下载大模型或�
 `npm test` 默认跳过真实模型推理；显式准备测试模型并设置 `BESTDICT_REAL_ASSETS=1` 后执行完整推理测试。
 打包脚本还会扫描发行资源，发现 Argos / HY 权重时报告失败。
 
+### GitHub 自动发布
+
+仓库的 [Release workflow](.github/workflows/release.yml) 在推送 `v*` 标签时，
+自动准备 Windows x64 运行时与内置词库，执行测试、打包及打包后的桌面测试，
+通过后创建 GitHub Release，上传安装包和 SHA-256 校验文件。
+发布使用 GitHub Actions 自带的临时 `GITHUB_TOKEN`，无需配置个人访问令牌。
+
+发布新版本时，先更新 `package.json`、`package-lock.json` 中的版本及 `CHANGELOG.md`，
+提交并推送代码，再创建与版本一致的标签，例如：
+
+```powershell
+git tag -a v0.4.3 -m "BestDict v0.4.3"
+git push origin v0.4.3
+```
+
+在 GitHub 的 **Actions → Release** 查看构建进度；完成后可在 **Releases** 下载。
+若仓库禁用了 Actions，需先启用。失败时修复原因后可在 Actions 中重跑；
+也可通过 **Run workflow** 选择已有版本标签。已发布版本不会被覆盖，应使用新版本标签。
+
 <details>
 <summary>下载受代理或网络环境影响时</summary>
 
