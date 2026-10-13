@@ -9,6 +9,7 @@ class ResourceManager {
     this.catalog = JSON.parse(fs.readFileSync(path.join(assets, 'dictionaries.json'), 'utf8'));
     this.hySpec = JSON.parse(fs.readFileSync(path.join(assets, 'hy-model.json'), 'utf8'));
     this.argosSpec = JSON.parse(fs.readFileSync(path.join(assets, 'argos-model.json'), 'utf8'));
+    this.kokoroSpec = JSON.parse(fs.readFileSync(path.join(assets, 'kokoro-model.json'), 'utf8'));
     this.installer = new WorkerClient(python, script, assets, 'installer');
     this.latestProgress = null;
     this.progress = data => { this.latestProgress = data; progress(data); };
@@ -43,10 +44,21 @@ class ResourceManager {
   downloadLinks(id) {
     if (id === 'argos') return this.argosSpec.packages.map(p => p.url);
     if (id === 'hy-mt2') return [this.hySpec.url];
+    if (id === 'kokoro') return [this.kokoroSpec.url];
     throw new Error('资源无效。');
   }
 
   argosRoot() { return path.join(this.library, 'argos'); }
+
+  kokoroRoot() { return path.join(this.library, 'kokoro', 'model'); }
+
+  kokoroStatus() {
+    const meta = this.metadata('kokoro');
+    const ready = meta?.sha256 === this.kokoroSpec.sha256 && this.kokoroSpec.required.every(file => {
+      try { return meta.sizes?.[file] > 0 && fs.statSync(path.join(this.kokoroRoot(), file)).size === meta.sizes[file]; } catch { return false; }
+    });
+    return { ...this.kokoroSpec, ready: !!ready };
+  }
 
   argosStatus() {
     const meta = this.metadata('argos');
@@ -66,9 +78,9 @@ class ResourceManager {
 
   async install(id, sourceFile) {
     if (this.activeJob) throw new Error('已有资源正在安装，请等待完成或取消。');
-    if (!['argos', 'hy-mt2'].includes(id) && !this.catalog.dictionaries.some(item => item.id === id)) throw new Error('资源无效。');
+    if (!['argos', 'hy-mt2', 'kokoro'].includes(id) && !this.catalog.dictionaries.some(item => item.id === id)) throw new Error('资源无效。');
     if (id === 'argos' && this.argosStatus().ready) throw new Error('Argos 模型已经安装。');
-    if (!['argos', 'hy-mt2'].includes(id) && this.list().find(item => item.id === id)?.installed) throw new Error('这个词库已经安装。');
+    if (!['argos', 'hy-mt2', 'kokoro'].includes(id) && this.list().find(item => item.id === id)?.installed) throw new Error('这个词库已经安装。');
     this.activeJob = id;
     this.progress({ id, phase: 'starting', message: '正在准备资源…' });
     try {
@@ -83,6 +95,13 @@ class ResourceManager {
         try { fs.rmSync(path.join(this.library, id, staging)); } catch {}
       }
       try { fs.rmSync(path.join(this.library, 'cache', 'wiktionary-zh.jsonl.gz.part')); } catch {}
+      if (id === 'kokoro') {
+        const staging = path.resolve(this.library, 'kokoro', 'model.incoming');
+        if (path.dirname(staging) === path.resolve(this.library, 'kokoro')) {
+          try { fs.rmSync(staging, { recursive: true, force: true }); } catch {}
+        }
+        try { fs.rmSync(path.join(this.library, 'cache', this.kokoroSpec.filename + '.part')); } catch {}
+      }
       if (id === 'argos') {
         const staging = path.resolve(this.library, 'argos', 'models.incoming');
         if (path.dirname(staging) === path.resolve(this.library, 'argos')) {

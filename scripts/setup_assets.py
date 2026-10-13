@@ -101,6 +101,8 @@ def build_runtime(path):
     if not (dest / 'Lib' / 'site-packages' / 'ctranslate2').exists():
         subprocess.run(['uv', 'pip', 'install', '--python', str(ROOT / '.venv' / 'Scripts' / 'python.exe'),
             '--target', str(dest / 'Lib' / 'site-packages'), 'ctranslate2==4.6.0', 'sentencepiece==0.2.1', 'setuptools==80.9.0'], check=True)
+    from setup_tts_runtime import install
+    install()
 
 
 def main():

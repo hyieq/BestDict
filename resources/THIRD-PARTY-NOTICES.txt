@@ -65,3 +65,17 @@ llama.cpp (CPU inference runner, b11429)
 https://github.com/ggml-org/llama.cpp
 MIT license; full notice: licenses/llama-cpp-LICENSE.txt.
 Official Windows CPU binary, distributed without code modifications.
+
+sherpa-onnx / sherpa-onnx-core 1.13.8 (CPU text-to-speech runtime)
+https://github.com/k2-fsa/sherpa-onnx/tree/v1.13.8
+Apache-2.0; full notice: licenses/sherpa-onnx-LICENSE.txt.
+Native runtime dependencies retain their upstream licenses.
+
+Kokoro-82M v1.1 Chinese / English (optional INT8 voice pack)
+https://huggingface.co/hexgrad/Kokoro-82M-v1.1-zh
+Model weights: Apache-2.0. The model archive includes its upstream LICENSE.
+https://github.com/k2-fsa/sherpa-onnx/releases/tag/tts-models
+The model and pronunciation data are NOT bundled or automatically downloaded.
+Installed resources retain all upstream archive files and ATTRIBUTION.txt.
+The archive also contains eSpeak NG pronunciation data, separately licensed:
+https://github.com/espeak-ng/espeak-ng (GPL-3.0-or-later).

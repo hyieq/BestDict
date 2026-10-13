@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import { BookOpen, Check, Command, Copy, Download, ExternalLink, Leaf, LoaderCircle, Moon, Settings2, Sparkles, Sun, Upload, X } from 'lucide-react';
-import type { ResourceCatalog, ResourceProgress, Settings, Status } from './types';
+import { BookOpen, Check, Command, Copy, Download, ExternalLink, Leaf, LoaderCircle, Moon, Settings2, Sparkles, Sun, Upload, Volume2, X } from 'lucide-react';
+import type { ResourceCatalog, ResourceProgress, Settings, Status, SpeechCatalog } from './types';
 import { createTranslator } from './i18n';
+import { useSpeech } from './useSpeech';
+import SpeechButton from './SpeechButton';
 
 const api = window.bestdict;
 const terminal = new Set(['complete', 'cancelled', 'error']);
@@ -15,6 +17,16 @@ export default function SettingsDialog({ settings, status, catalog, initialTab, 
   const [draft, setDraft] = useState(settings);
   const t = createTranslator(draft.locale);
   const [tab, setTab] = useState(initialTab);
+  const preview = useSpeech();
+  useEffect(() => { preview.stop(); }, [draft.speech, tab, preview.stop]);
+  const [voices, setVoices] = useState<SpeechCatalog | null>(null);
+  const [voiceError, setVoiceError] = useState('');
+  useEffect(() => {
+    if (tab !== 'speech') return;
+    let active = true;
+    void api.getSpeechCatalog().then(value => { if (active) setVoices(value); }).catch(e => { if (active) setVoiceError(errorText(e)); });
+    return () => { active = false; };
+  }, [tab]);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const [installPending, setInstallPending] = useState(false);
@@ -46,7 +58,7 @@ export default function SettingsDialog({ settings, status, catalog, initialTab, 
     if (installing.current || job || saving) return;
     setSaving(true); setError('');
     try { onSaved(await api.setSettings({ theme: draft.theme, locale: draft.locale, startup: draft.startup, shortcut: draft.shortcut,
-      dictionaryId: draft.dictionaryId, translationEngine: draft.translationEngine })); onClose(); }
+      dictionaryId: draft.dictionaryId, translationEngine: draft.translationEngine, speech: draft.speech })); onClose(); }
     catch (e) { setError(errorText(e)); }
     finally { setSaving(false); }
   }
@@ -60,7 +72,7 @@ export default function SettingsDialog({ settings, status, catalog, initialTab, 
       const result = local ? await api.importResource(id) : await api.downloadResource(id);
       onRefresh();
       if (result && mounted.current) {
-        if (id === 'argos' || id === 'hy-mt2') {
+        if (id === 'argos' || id === 'hy-mt2' || id === 'kokoro') {
           const current = await api.getSettings();
           if (mounted.current) { setDraft(previous => ({ ...previous, translationEngine: current.translationEngine })); onSaved(current); }
         } else setDraft(previous => ({ ...previous, dictionaryId: id }));
@@ -75,7 +87,7 @@ export default function SettingsDialog({ settings, status, catalog, initialTab, 
     return t('已安装 · 未启用');
   }
 
-  async function copyLinks(id: 'argos' | 'hy-mt2') {
+  async function copyLinks(id: 'argos' | 'hy-mt2' | 'kokoro') {
     setError('');
     try {
       await api.copyDownloadLinks(id);
@@ -86,7 +98,7 @@ export default function SettingsDialog({ settings, status, catalog, initialTab, 
     } catch (e) { if (mounted.current) setError(errorText(e)); }
   }
 
-  function copyButton(id: 'argos' | 'hy-mt2') {
+  function copyButton(id: 'argos' | 'hy-mt2' | 'kokoro') {
     return <button className="secondary-button" onClick={() => void copyLinks(id)}>
       {copiedLinks === id ? <Check size={13} /> : <Copy size={13} />}
       {copiedLinks === id ? t(id === 'argos' ? '已复制两个链接' : '已复制') : t('复制下载链接')}
@@ -113,9 +125,38 @@ export default function SettingsDialog({ settings, status, catalog, initialTab, 
     }}>
       <div className="dialog-heading"><h2 id="settings-title">{t("设置")}</h2><button className="icon-button" aria-label={t("关闭设置")} onClick={onClose}><X size={19} /></button></div>
       <div className="settings-tabs" role="tablist" aria-label={t("设置分类")}>{[
-        ['general', t("通用"), Settings2], ['dictionaries', t("词库"), BookOpen], ['engines', t("翻译引擎"), Sparkles],
+        ['general', t("通用"), Settings2], ['dictionaries', t("词库"), BookOpen], ['engines', t("翻译引擎"), Sparkles], ['speech', t('发音'), Volume2],
       ].map(([value, label, Icon]) => { const TabIcon = Icon as typeof Settings2; return <button key={value as string} role="tab" aria-selected={tab === value} onClick={() => setTab(value as string)}><TabIcon size={14} />{label as string}</button>; })}</div>
       <div className="settings-body">
+        {tab === 'speech' && <>
+          <p className="settings-intro">{t('点击译文旁的发音按钮播放，再点一次停止。语音在本机生成。')}</p>
+          <div className="setting-row"><label htmlFor="speech-engine">{t('发音引擎')}</label><select id="speech-engine" value={draft.speech.engine} onChange={e => setDraft({ ...draft, speech: { ...draft.speech, engine: e.target.value as Settings['speech']['engine'] } })}>
+            <option value="auto">{t('自动（优先 Kokoro）')}</option><option value="system">{t('系统语音')}</option><option value="kokoro">Kokoro</option>
+          </select></div>
+          <div className="setting-block"><label htmlFor="speech-rate">{t('语速')} <span>{draft.speech.rate.toFixed(1)}×</span></label><input id="speech-rate" className="speech-rate" type="range" min="0.5" max="2" step="0.1" value={draft.speech.rate} onChange={e => setDraft({ ...draft, speech: { ...draft.speech, rate: Number(e.target.value) } })} /></div>
+          <div className="speech-previews">{(['zh', 'en'] as const).map(language => <div key={language} className="speech-preview" role="group" aria-label={t(language === 'zh' ? '试听中文' : '试听英文')}>
+            <span>{t(language === 'zh' ? '试听中文' : '试听英文')}</span><SpeechButton active={preview.active === language} loading={preview.loading} t={t} onClick={() => void preview.toggle(language, { text: '', direction: language }, draft.speech)} />
+          </div>)}</div>
+          <p className="settings-intro">{t('试听使用当前音色和语速，无需先保存。再次点击可停止。')}</p>
+          {preview.error && <div className="error-banner" role="alert">{t(preview.error)}</div>}
+          {(draft.speech.engine === 'kokoro' || (draft.speech.engine === 'auto' && catalog?.kokoro?.ready)) && (['zh', 'en'] as const).map(language => <div className="setting-row speech-voice" key={language}><label htmlFor={`kokoro-${language}`}>{t(language === 'zh' ? '中文音色' : '英文音色')}</label><select id={`kokoro-${language}`} disabled={!voices} value={draft.speech.kokoroVoices[language]} onChange={e => setDraft({ ...draft, speech: { ...draft.speech, kokoroVoices: { ...draft.speech.kokoroVoices, [language]: Number(e.target.value) } } })}>
+            {voices ? voices.kokoro.filter(v => v.language === language).map(v => <option key={v.id} value={v.id}>{t(v.name)}</option>) : <option>{t('正在读取音色…')}</option>}
+          </select></div>)}
+          <details className="resource-details" open={draft.speech.engine === 'system' || (draft.speech.engine === 'auto' && !catalog?.kokoro?.ready)}><summary>{t('系统音色')}</summary>
+            <p>{t('未安装语音包时使用系统语音；其他语言始终使用对应系统音色。')}</p>
+            {(voiceError || voices?.systemError) && <p role="status">{t(voiceError || voices?.systemError || '')}</p>}
+            {!voices && !voiceError && <p>{t('正在读取音色…')}</p>}
+            {voices && [...new Set(['zh', 'en', ...voices.system.map(v => v.language.split(/[-_]/)[0])])].map(language => <div className="setting-row speech-voice" key={language}><label htmlFor={`system-${language}`}>{t(language === 'zh' ? '中文音色' : language === 'en' ? '英文音色' : language)}</label><select id={`system-${language}`} value={draft.speech.systemVoices[language] || ''} onChange={e => setDraft({ ...draft, speech: { ...draft.speech, systemVoices: { ...draft.speech.systemVoices, [language]: e.target.value } } })}>
+              <option value="">{t(voices.system.some(v => v.language.split(/[-_]/)[0] === language) ? '自动选择' : '未安装该语言音色')}</option>{voices.system.filter(v => v.language.split(/[-_]/)[0] === language).map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+            </select></div>)}
+          </details>
+          <div className="engine-card" data-testid="engine-kokoro"><div className="engine-heading"><div><strong>{t('中英离线语音包')}</strong><p>Kokoro v1.1 · INT8 · Apache-2.0</p></div><span className="engine-badge">{t(catalog?.kokoro?.ready ? '已安装' : '未安装')}</span></div>
+            <p className="engine-purpose">{t('Windows 与 macOS 共用模型和音色，下载约 147 MB，安装后离线使用。')}</p>
+            {!catalog?.kokoro?.ready && <button className="small-download" disabled={!!job || installPending} onClick={() => void install('kokoro', false)}><Download size={13} />{t('下载语音包')}</button>}
+            {downloadStatus('kokoro')}
+            <details className="resource-details"><summary>{t('下载选项与模型说明')}</summary><div className="engine-actions"><button className="secondary-button" disabled={!!job || installPending} onClick={() => void install('kokoro', true)}><Upload size={13} />{t('导入语音包')}</button>{copyButton('kokoro')}<button className="source-link" onClick={() => void api.openSource('kokoro').catch(e => setError(errorText(e)))}><ExternalLink size={12} />{t('官方来源')}</button></div></details>
+          </div>
+        </>}
         {(error || settings.shortcutError) && <div className="error-banner" role="alert">{t(error || settings.shortcutError)}</div>}
         {tab === 'general' && <>
           <div className="setting-row"><label htmlFor="interface-language">{t("界面语言")}</label><select id="interface-language" className="language-select" value={draft.locale} onChange={e => setDraft({ ...draft, locale: e.target.value as Settings['locale'] })}><option value="zh-CN">{t("简体中文")}</option><option value="en">English</option></select></div>

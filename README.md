@@ -160,6 +160,22 @@ Remove-Item Env:BESTDICT_RELEASE_DIR
 
 </details>
 
+## 译文发音
+
+单词、基础译文和 AI 译文旁的喇叭按钮支持点击播放、再次点击停止，准备音频时也能停止。
+切换查询、打开设置或隐藏窗口会停止当前发音。音色、语速和引擎在 **设置 → 发音** 中选择。
+设置中的“试听中文 / 试听英文”使用当前未保存的音色和语速；修改参数或关闭设置会停止试听，试听不会保存设置。
+
+默认自动模式先使用系统已安装音色；安装 Kokoro INT8 中英语音包后，中英文优先使用 Kokoro。
+语音包约 147 MB，独立按需下载，也可复制官方链接后导入 `.tar.bz2` 文件，导入时验证 SHA-256。
+其他语言使用对应的系统音色；没有匹配音色时会提示安装，不会用错误语言朗读。
+所有合成均在本机进行。Windows 使用 System.Speech，macOS 使用系统 `say`；Kokoro 共用模型、分别安装平台运行库。
+macOS 适配目前尚未经过真机测试，现有发布流程仍为 Windows。
+
+开发环境运行 `.venv/Scripts/python.exe scripts/setup_tts_runtime.py` 准备语音运行库；正常资源初始化也会执行这一步。
+`npm run test:speech` 验证桌面播放控制；`python -m unittest discover -s tests -p test_speech_installer.py` 验证语音包安装。
+真实 Kokoro 测试使用 `.cache/speech-validation/kokoro/model` 中已安装的模型，设置 `BESTDICT_TEST_KOKORO=1` 后运行 `node --test tests/speech.test.cjs`。
+
 ## 贡献
 
 欢迎提交 Issue 和 Pull Request。请附上复现步骤与平台信息，参见 [贡献指南](CONTRIBUTING.md) 和 [更新记录](CHANGELOG.md)。

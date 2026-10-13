@@ -1,6 +1,15 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('bestdict', {
+  getSpeechCatalog: () => ipcRenderer.invoke('speech:catalog'),
+  synthesizeSpeech: (text, language) => ipcRenderer.invoke('speech:synthesize', { text, language }),
+  previewSpeech: (language, settings) => ipcRenderer.invoke('speech:preview', { language, settings }),
+  cancelSpeech: () => ipcRenderer.invoke('speech:cancel'),
+  onStopSpeech: callback => {
+    const listener = () => callback();
+    ipcRenderer.on('speech:stop', listener);
+    return () => ipcRenderer.removeListener('speech:stop', listener);
+  },
   getAppearance: () => ipcRenderer.invoke('window:appearance'),
   onAppearance: callback => {
     const listener = (_event, data) => callback(data);

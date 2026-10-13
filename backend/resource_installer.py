@@ -146,6 +146,66 @@ def install_dictionary(assets, library, resource_id, emit, source_file=None):
         temp.unlink(missing_ok=True)
 
 
+def install_kokoro(assets, library, emit, source_file=None):
+    import tarfile
+    spec = json.loads((assets / 'kokoro-model.json').read_text(encoding='utf-8'))
+    folder = library / 'kokoro'
+    folder.mkdir(parents=True, exist_ok=True)
+    staging = folder / 'model.incoming'
+    if staging.resolve().parent != folder.resolve():
+        raise ValueError('模型安装路径无效。')
+    if staging.exists():
+        shutil.rmtree(staging)
+    staging.mkdir()
+    archive_file = Path(source_file) if source_file else library / 'cache' / spec['filename']
+    try:
+        if not source_file and not archive_file.exists():
+            fetch(spec['url'], archive_file, emit, 'kokoro', spec['bytes'])
+        emit({'id': 'kokoro', 'phase': 'verifying', 'message': '正在验证官方 SHA-256…'})
+        if archive_file.stat().st_size != spec['bytes'] or checksum(archive_file) != spec['sha256']:
+            if not source_file:
+                archive_file.unlink(missing_ok=True)
+            raise ValueError('语音包校验失败，请重新下载官方 INT8 中英语音包。')
+        emit({'id': 'kokoro', 'phase': 'extracting', 'message': '正在安装离线语音包…'})
+        with tarfile.open(archive_file, 'r:bz2') as archive:
+            total = 0
+            for entry in archive:
+                relative = PurePosixPath(entry.name)
+                if relative.is_absolute() or '..' in relative.parts or '\\' in entry.name or ':' in entry.name or not relative.parts or relative.parts[0] != spec['directory'] or not (entry.isfile() or entry.isdir()):
+                    raise ValueError('语音包包含无效路径。')
+                parts = relative.parts[1:]
+                if not parts or entry.isdir():
+                    continue
+                total += entry.size
+                if total > 1024**3:
+                    raise ValueError('语音包解压大小异常。')
+                target = staging.joinpath(*parts)
+                if not target.resolve().is_relative_to(staging.resolve()):
+                    raise ValueError('语音包包含无效路径。')
+                target.parent.mkdir(parents=True, exist_ok=True)
+                with archive.extractfile(entry) as source, target.open('wb') as output:
+                    shutil.copyfileobj(source, output)
+        sizes = {}
+        for required in spec['required']:
+            target = staging / required
+            if not target.is_file() or target.stat().st_size == 0:
+                raise ValueError('语音包缺少必要文件。')
+            sizes[required] = target.stat().st_size
+        output = folder / 'model'
+        if output.exists():
+            if output.resolve().parent != folder.resolve():
+                raise ValueError('模型安装路径无效。')
+            shutil.rmtree(output)
+        staging.replace(output)
+        (folder / 'metadata.json').write_text(json.dumps({'sha256': spec['sha256'], 'sizes': sizes}), encoding='utf-8')
+        (folder / 'ATTRIBUTION.txt').write_text('Kokoro-82M v1.1 / hexgrad\nApache-2.0\nhttps://huggingface.co/hexgrad/Kokoro-82M-v1.1-zh\n' + spec['homepage'], encoding='utf-8')
+        emit({'id': 'kokoro', 'phase': 'complete', 'message': '离线语音包已安装。'})
+        return {'ready': True}
+    finally:
+        if staging.exists():
+            shutil.rmtree(staging)
+
+
 def install_hy(assets, library, emit, source_file=None):
     spec = json.loads((assets / 'hy-model.json').read_text(encoding='utf-8'))
     folder = library / 'hy-mt2'

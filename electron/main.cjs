@@ -5,6 +5,8 @@ const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 const { WorkerClient } = require('./worker.cjs');
 const { ResourceManager } = require('./resources.cjs');
+const { SpeechService } = require('./speech.cjs');
+const { defaultSpeech, validateSpeech } = require('./speech-options.cjs');
 const { defaultStyles, validateStyles, translationOptions } = require('./ai-options.cjs');
 const { HyTranslator } = require('./hy.cjs');
 const { basicDirection } = require('./query-policy.mjs');
@@ -13,7 +15,7 @@ const english = require('./locales/en.json');
 protocol.registerSchemesAsPrivileged([{ scheme: 'bestdict', privileges: { standard: true, secure: true, supportFetchAPI: true } }]);
 const testing = process.env.BESTDICT_TEST === '1';
 if (testing) app.setPath('userData', path.join(app.getPath('temp'), `bestdict-test-${process.pid}`));
-let window, tray, trayMenu, dictionary, translator, resources, hy;
+let window, tray, trayMenu, dictionary, translator, resources, hy, speech;
 let quitting = false;
 let settings;
 let shortcutError = '';
@@ -46,13 +48,14 @@ function loadSettings() {
     catch { settings = { ...defaults }; }
   }
   if (typeof settings.autoDictionary !== 'boolean') settings.autoDictionary = true;
+  try { settings.speech = validateSpeech(settings.speech); } catch { settings.speech = defaultSpeech; }
   try { settings.aiStyles = validateStyles(settings.aiStyles); } catch { settings.aiStyles = defaultStyles; }
   if (settings.aiStylesVersion < 2) {
     if (!settings.aiStyles.some(s => s.id === 'concise') && settings.aiStyles.length < 30) settings.aiStyles = [...settings.aiStyles, defaultStyles.find(s => s.id === 'concise')];
     settings.aiStylesVersion = 2;
   }
   if (!settings.aiStyles.some(s => s.id === settings.aiStyleId)) settings.aiStyleId = settings.aiStyles[0].id;
-  if (testing) settings = { ...defaults };
+  if (testing) settings = { ...defaults, speech: defaultSpeech };
   if (!['zh-CN', 'en'].includes(settings.locale)) settings.locale = 'zh-CN';
   if (!['light', 'dark', 'system'].includes(settings.theme)) settings.theme = 'system';
 }
@@ -77,6 +80,8 @@ function updateTray() {
 function hideToTray() {
   if (!window || !tray || tray.isDestroyed()) return;
   rememberBounds();
+  speech?.cancel();
+  window.webContents.send('speech:stop');
   window.hide();
   if (process.platform === 'win32' && !settings.trayHintSeen) {
     saveSettings({ ...settings, trayHintSeen: true });
@@ -173,6 +178,7 @@ function setupIPC() {
   handle('settings:set', changes => {
     if (!changes || typeof changes !== 'object') throw new Error('设置格式无效。');
     const next = { ...settings };
+    if ('speech' in changes) next.speech = validateSpeech(changes.speech);
     if ('aiStyles' in changes) next.aiStyles = validateStyles(changes.aiStyles);
     if ('aiStyleId' in changes) next.aiStyleId = changes.aiStyleId;
     if (!next.aiStyles.some(s => s.id === next.aiStyleId)) next.aiStyleId = next.aiStyles[0].id;
@@ -217,6 +223,7 @@ function setupIPC() {
     }
     if (next.translationEngine !== settings.translationEngine) translator.stop();
     saveSettings(next);
+    if ('speech' in changes) { speech.cancel(); window.webContents.send('speech:stop'); }
     if ('theme' in changes) {
       nativeTheme.themeSource = settings.theme;
       updateWindowAppearance();
@@ -236,10 +243,19 @@ function setupIPC() {
       shortcutError,
     };
   });
-  handle('resources:list', () => ({ dictionaries: resources.list(), argos: resources.argosStatus(), hy: resources.hyStatus(), progress: resources.latestProgress }));
+  handle('speech:catalog', () => speech.catalog());
+  handle('speech:synthesize', request => speech.synthesize(request?.text, request?.language, settings.speech));
+  handle('speech:preview', request => {
+    const samples = { zh: '你好，欢迎使用词典。这是当前音色和语速的试听。', en: 'Hello, welcome to BestDict. This is a preview of your selected voice and speed.' };
+    if (!Object.hasOwn(samples, request?.language)) throw new Error('试听语言无效。');
+    return speech.synthesize(samples[request.language], request.language, validateSpeech(request.settings));
+  });
+  handle('speech:cancel', () => speech.cancel());
+  handle('resources:list', () => ({ dictionaries: resources.list(), argos: resources.argosStatus(), hy: resources.hyStatus(), kokoro: resources.kokoroStatus(), progress: resources.latestProgress }));
   async function installResource(id, source) {
     if (id === 'hy-mt2') hy.stop();
     if (id === 'argos') translator.stop();
+    if (id === 'kokoro') { await speech.cancel(); window.webContents.send('speech:stop'); }
     const result = await resources.install(id, source);
     if (id === 'argos' && result && resources.argosStatus().ready && !settings.argosConfigured) {
       saveSettings({ ...settings, translationEngine: 'argos', argosConfigured: true });
@@ -254,17 +270,17 @@ function setupIPC() {
     return links.length;
   });
   handle('resources:import', async id => {
-    if (!['argos', 'hy-mt2'].includes(id) && !resources.catalog.dictionaries.some(item => item.id === id)) throw new Error('未知资源。');
+    if (!['argos', 'hy-mt2', 'kokoro'].includes(id) && !resources.catalog.dictionaries.some(item => item.id === id)) throw new Error('未知资源。');
     const isArgos = id === 'argos';
-    const selected = await dialog.showOpenDialog(window, { title: nativeText(isArgos ? '同时选择中英两个 Argos 模型包' : id === 'hy-mt2' ? '导入官方 Hy-MT2 Q4_K_M 模型' : '导入中文版 Wiktextract 数据'),
+    const selected = await dialog.showOpenDialog(window, { title: nativeText(isArgos ? '同时选择中英两个 Argos 模型包' : id === 'kokoro' ? '导入官方 Kokoro INT8 中英语音包' : id === 'hy-mt2' ? '导入官方 Hy-MT2 Q4_K_M 模型' : '导入中文版 Wiktextract 数据'),
       properties: isArgos ? ['openFile', 'multiSelections'] : ['openFile'],
-      filters: isArgos ? [{ name: 'Argos model', extensions: ['argosmodel'] }] : id === 'hy-mt2' ? [{ name: nativeText('GGUF 模型'), extensions: ['gguf'] }] : [{ name: 'Wiktextract JSONL', extensions: ['gz', 'jsonl', 'json'] }] });
+      filters: isArgos ? [{ name: 'Argos model', extensions: ['argosmodel'] }] : id === 'kokoro' ? [{ name: 'Kokoro INT8', extensions: ['bz2'] }] : id === 'hy-mt2' ? [{ name: nativeText('GGUF 模型'), extensions: ['gguf'] }] : [{ name: 'Wiktextract JSONL', extensions: ['gz', 'jsonl', 'json'] }] });
     if (selected.canceled) return null;
     if (isArgos && selected.filePaths.length !== 2) throw new Error('请同时选择中英两个方向的 .argosmodel 文件。');
     return installResource(id, isArgos ? selected.filePaths : selected.filePaths[0]);
   });
   handle('resources:source', id => {
-    const url = id === 'argos' ? resources.argosSpec.homepage : id === 'hy-mt2' ? resources.hySpec.homepage : id === 'hy-license' ? resources.hySpec.licenseUrl : resources.list().find(item => item.id === id)?.homepage;
+    const url = id === 'kokoro' ? resources.kokoroSpec.homepage : id === 'argos' ? resources.argosSpec.homepage : id === 'hy-mt2' ? resources.hySpec.homepage : id === 'hy-license' ? resources.hySpec.licenseUrl : resources.list().find(item => item.id === id)?.homepage;
     if (!url) throw new Error('无效的来源。');
     return shell.openExternal(url);
   });
@@ -290,6 +306,7 @@ else {
     resources = new ResourceManager({ assets, library: process.env.BESTDICT_LIBRARY && testing ? process.env.BESTDICT_LIBRARY : path.join(app.getPath('userData'), 'library'), python,
       script: path.join(root, 'backend', 'worker.py'), progress: data => window?.webContents.send('resources:progress', data) });
     translator = new WorkerClient(python, path.join(root, 'backend', 'worker.py'), resources.argosRoot(), 'translation');
+    speech = new SpeechService({ python, backend: path.join(root, 'backend'), resources });
     // Migrate the old global HY selection to the independent manual AI feature.
     if (settings.translationEngine === 'hy') settings.translationEngine = resources.argosStatus().ready ? 'argos' : 'none';
     if (!['none', 'argos'].includes(settings.translationEngine) ||
@@ -339,9 +356,9 @@ else {
 
 app.on('activate', reveal);
 app.on('window-all-closed', () => {});
-app.on('before-quit', () => { quitting = true; rememberBounds(); dictionary?.stop(); translator?.stop(); hy?.stop(); resources?.cancel(); });
+app.on('before-quit', () => { quitting = true; rememberBounds(); dictionary?.stop(); translator?.stop(); hy?.stop(); speech?.stop(); resources?.cancel(); });
 app.on('will-quit', () => { globalShortcut.unregisterAll(); tray?.destroy(); });
 // Native tray interaction is exercised by Playwright in an isolated test process.
 if (testing) globalThis.__bestdictNative = { getTray: () => tray, getTrayMenu: () => trayMenu,
-  getServices: () => ({ resources, translator, hy }),
+  getServices: () => ({ resources, translator, hy, speech }),
   readSettings: () => JSON.parse(fs.readFileSync(settingsPath, 'utf8')) };

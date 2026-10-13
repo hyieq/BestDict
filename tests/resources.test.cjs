@@ -91,6 +91,7 @@ test('explicit downloads report progress, install, reuse the shared source and c
   fs.writeFileSync(path.join(localAssets, 'dictionaries.json'), JSON.stringify(catalog));
   fs.copyFileSync(path.join(root, 'resources/hy-model.json'), path.join(localAssets, 'hy-model.json'));
   fs.copyFileSync(path.join(root, 'resources/argos-model.json'), path.join(localAssets, 'argos-model.json'));
+  fs.copyFileSync(path.join(root, 'resources/kokoro-model.json'), path.join(localAssets, 'kokoro-model.json'));
   const emitted = [];
   const downloader = new ResourceManager({ assets: localAssets, library: path.join(temporary, 'download'), python, script, progress: e => emitted.push(e) });
   let cancelling;
@@ -120,7 +121,7 @@ test('explicit downloads report progress, install, reuse the shared source and c
 test('manual Argos imports identify both directions by checksum, accept renamed files and never download', async () => {
   const assets = path.join(temporary, 'argos-import-assets');
   fs.mkdirSync(assets);
-  for (const name of ['dictionaries.json', 'hy-model.json']) fs.copyFileSync(path.join(root, 'resources', name), path.join(assets, name));
+  for (const name of ['dictionaries.json', 'hy-model.json', 'kokoro-model.json']) fs.copyFileSync(path.join(root, 'resources', name), path.join(assets, name));
   const packages = [];
   const filenames = [];
   for (const pair of ['en_zh', 'zh_en']) {
@@ -149,7 +150,7 @@ test('manual Argos imports identify both directions by checksum, accept renamed 
 test('Argos downloads are optional, checksummed and ready only after both directions install', async () => {
   const assets = path.join(temporary, 'argos-assets');
   fs.mkdirSync(assets);
-  for (const name of ['dictionaries.json', 'hy-model.json']) fs.copyFileSync(path.join(root, 'resources', name), path.join(assets, name));
+  for (const name of ['dictionaries.json', 'hy-model.json', 'kokoro-model.json']) fs.copyFileSync(path.join(root, 'resources', name), path.join(assets, name));
   const archive = path.join(temporary, 'tiny.argosmodel');
   const fixtureCode = `import zipfile,sys\nwith zipfile.ZipFile(sys.argv[1],'w') as z:\n for name in ['model/model.bin','model/config.json','sentencepiece.model']:\n  z.writestr('translate-test/'+name,'fixture')`;
   const generated = spawnSync(python, ['-c', fixtureCode, archive], { windowsHide: true, encoding: 'utf8' });

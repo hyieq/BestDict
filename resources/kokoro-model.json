@@ -1,0 +1,12 @@
+{
+  "id": "kokoro",
+  "name": "Kokoro 中英离线语音",
+  "filename": "kokoro-int8-multi-lang-v1_1.tar.bz2",
+  "directory": "kokoro-int8-multi-lang-v1_1",
+  "bytes": 147031220,
+  "sha256": "a1e94694776049035c4f2c6529f003aaece993c76aae9a78995831c3c4dcafc6",
+  "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/kokoro-int8-multi-lang-v1_1.tar.bz2",
+  "homepage": "https://k2-fsa.github.io/sherpa/onnx/tts/all/Chinese-English/kokoro-multi-lang-v1_1.html",
+  "license": "Apache-2.0",
+  "required": ["model.int8.onnx", "voices.bin", "tokens.txt", "lexicon-us-en.txt", "lexicon-gb-en.txt", "lexicon-zh.txt", "espeak-ng-data/phontab"]
+}

@@ -8,6 +8,7 @@ export type Mode = 'auto' | 'dictionary' | 'translate';
 export interface AIStyle { id: string; name: string; prompt: string }
 export interface AIOptions { forceRefresh?: boolean; styleName?: string; stylePrompt?: string; polishPrompt?: string; previousText?: string }
 export interface Settings {
+  speech: SpeechSettings;
   aiStyles: AIStyle[]; aiStyleId: string;
   locale: 'zh-CN' | 'en'; traySettingsAvailable: boolean;
   startup: boolean; shortcut: string; theme: 'system' | 'light' | 'dark';
@@ -22,12 +23,18 @@ export interface DictionaryInfo {
 }
 export interface ResourceProgress { id: string; phase: string; message: string; received?: number; total?: number; count?: number }
 export interface ResourceCatalog {
+  kokoro: { ready: boolean; bytes: number; name: string; license: string };
   dictionaries: DictionaryInfo[];
   argos: { ready: boolean; bytes: number; name: string; license: string };
   hy: { ready: boolean; bytes: number; name: string; license: string; filename: string };
   progress: ResourceProgress | null;
 }
 export interface DesktopAPI {
+  getSpeechCatalog(): Promise<SpeechCatalog>;
+  synthesizeSpeech(text: string, language: string): Promise<{ audio: string; engine: string }>;
+  previewSpeech(language: string, settings: SpeechSettings): Promise<{ audio: string; engine: string }>;
+  cancelSpeech(): Promise<void>;
+  onStopSpeech(callback: () => void): () => void;
   getAppearance(): Promise<{ material: 'acrylic' | 'fallback' | 'solid'; dark: boolean; reducedTransparency: boolean }>;
   onAppearance(callback: (appearance: { material: 'acrylic' | 'fallback' | 'solid'; dark: boolean; reducedTransparency: boolean }) => void): () => void;
   lookup(text: string): Promise<LookupResult>;
@@ -41,7 +48,7 @@ export interface DesktopAPI {
   getResources(): Promise<ResourceCatalog>;
   downloadResource(id: string): Promise<unknown>;
   importResource(id: string): Promise<unknown>;
-  copyDownloadLinks(id: 'argos' | 'hy-mt2'): Promise<number>;
+  copyDownloadLinks(id: 'argos' | 'hy-mt2' | 'kokoro'): Promise<number>;
   cancelDownload(): Promise<void>;
   openSource(id: string): Promise<void>;
   openTraySettings(): Promise<void>;
@@ -51,3 +58,6 @@ export interface DesktopAPI {
   onFocus(callback: () => void): () => void;
 }
 declare global { interface Window { bestdict: DesktopAPI } }
+export interface SpeechSettings { engine: 'auto' | 'system' | 'kokoro'; rate: number; systemVoices: Record<string, string>; kokoroVoices: { en: number; zh: number } }
+export interface SpeechVoice { id: string; name: string; language: string }
+export interface SpeechCatalog { system: SpeechVoice[]; kokoro: SpeechVoice[]; systemError: string }

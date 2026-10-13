@@ -265,3 +265,14 @@ textarea::placeholder { color: var(--placeholder); font-size: 15px; }
 .style-save-error { position: absolute; top: 100%; background: var(--card); color: var(--text); font-size: 12px; }
 @media (max-width: 850px) { .ai-button-group { width: 112px; } }
 .style-editor textarea { height: 85px; }
+.result-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.speech-button.speaking { color: var(--accent); background: var(--tint); }
+.speech-rate { width: 100%; margin-top: 12px; accent-color: var(--accent); }
+.entry-word-row { display: flex; align-items: center; gap: 12px; }
+.entry-word-row .entry-word { min-width: 0; overflow-wrap: anywhere; }
+.entry-word-row .speech-button { flex-shrink: 0; color: var(--accent); background: var(--tint); }
+.speech-previews { display: flex; gap: 12px; margin: 0 0 12px; }
+.speech-preview { display: flex; align-items: center; gap: 12px; padding: 6px 10px; border: 1px solid var(--border); border-radius: 10px; font-size: 12px; }
+.speech-voice select { max-width: 70%; text-overflow: ellipsis; }
+.settings-dialog[data-tab="speech"] { width: 650px; }
+.settings-dialog[data-tab="speech"] select { min-width: 145px; padding: 8px 11px; color: var(--text); background: var(--page); border: 1px solid var(--border); border-radius: 8px; font: inherit; font-size: 12px; }

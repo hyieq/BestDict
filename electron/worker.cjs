@@ -47,7 +47,7 @@ class WorkerClient {
 
   armIdle() {
     clearTimeout(this.idleTimer);
-    if (this.config.kind === 'translation' && !this.pending.size) {
+    if (['translation', 'speech'].includes(this.config.kind) && !this.pending.size) {
       this.idleTimer = setTimeout(() => this.stop(), 60_000);
       this.idleTimer.unref();
     }

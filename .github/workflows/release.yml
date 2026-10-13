@@ -76,6 +76,9 @@ jobs:
       - name: Test offline resources
         run: npm test
 
+      - name: Test speech pack installer
+        run: .venv/Scripts/python.exe -m unittest discover -s tests -p test_speech_installer.py
+
       - name: Build Windows x64 installer
         run: |
           npm run package 2>&1 | Tee-Object -FilePath release-build.log
@@ -109,6 +112,8 @@ jobs:
           npm run test:ai-styles
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           npm run test:ai-menu
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm run test:speech
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Prepare checksum and release notes
