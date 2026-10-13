@@ -14,7 +14,7 @@ for (const [name, relative] of [
 ]) {
   if (!env[name] && existsSync(path.join(tools, relative))) env[name] = path.join(tools, relative);
 }
-const child = spawn(process.execPath, [path.join(root, 'node_modules/electron-builder/cli.js'), '--win', '--x64', `--config.directories.output=${output}`], { cwd: root, env, stdio: 'inherit', windowsHide: true });
+const child = spawn(process.execPath, [path.join(root, 'node_modules/electron-builder/cli.js'), '--win', '--x64', '--publish', 'never', `--config.directories.output=${output}`], { cwd: root, env, stdio: 'inherit', windowsHide: true });
 child.on('error', error => { console.error(error); process.exitCode = 1; });
 child.on('exit', code => {
   process.exitCode = code ?? 1;
