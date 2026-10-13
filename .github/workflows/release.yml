@@ -46,6 +46,8 @@ jobs:
           python-version: '3.12'
 
       - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: false
 
       - name: Install Node dependencies and Electron
         run: npm ci --registry=https://registry.npmjs.org
@@ -75,7 +77,15 @@ jobs:
         run: npm test
 
       - name: Build Windows x64 installer
-        run: npm run package
+        run: |
+          npm run package 2>&1 | Tee-Object -FilePath release-build.log
+          $buildExit = $LASTEXITCODE
+          if ($buildExit -ne 0) {
+            $tail = (Get-Content release-build.log -Tail 60) -join "`n"
+            $message = $tail.Replace('%', '%25').Replace("`r", '%0D').Replace("`n", '%0A')
+            Write-Output "::error title=Installer build failed::$message"
+            exit $buildExit
+          }
 
       - name: Test packaged desktop app
         run: |
@@ -141,5 +151,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: BestDict-${{ github.ref_name }}-test-results
-          path: test-results/
+          path: |
+            test-results/
+            release-build.log
           if-no-files-found: ignore
