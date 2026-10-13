@@ -99,9 +99,11 @@ jobs:
             exit $testExit
           }
 
-      - name: Test packaged query mode and AI menus
+      - name: Test packaged glass UI, query mode and AI menus
         run: |
           $env:BESTDICT_TEST_EXE = Join-Path $PWD 'release/win-unpacked/BestDict.exe'
+          npm run test:glass
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           npm run test:query-mode
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           npm run test:ai-styles
