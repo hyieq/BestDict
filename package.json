@@ -1,6 +1,6 @@
 {
   "name": "bestdict",
-  "version": "0.4.11",
+  "version": "0.4.12",
   "private": true,
   "description": "A quiet, offline-first bilingual desktop dictionary",
   "author": "BestDict",

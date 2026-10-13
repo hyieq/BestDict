@@ -4,15 +4,33 @@ const os = require('node:os');
 const path = require('node:path');
 const { WorkerClient } = require('./worker.cjs');
 const { kokoroVoices, validateSpeech, selectSystemVoice } = require('./speech-options.cjs');
+const { SpeechCache, MAX_BYTES, MAX_ENTRIES } = require('./speech-cache.cjs');
 
 class SpeechService {
-  constructor({ python, backend, resources, platform = process.platform }) {
+  constructor({ python, backend, resources, platform = process.platform, cacheDirectory, cacheLimits }) {
     this.backend = backend;
     this.resources = resources;
     this.platform = platform;
     this.worker = new WorkerClient(python, path.join(backend, 'speech_worker.py'), resources.kokoroRoot(), 'speech');
     this.children = new Set();
     this.revision = 0;
+    this.cache = cacheDirectory ? new SpeechCache(cacheDirectory, cacheLimits) : null;
+  }
+
+  cacheStatus() { return this.cache?.status() || Promise.resolve({ bytes: 0, count: 0, maxBytes: MAX_BYTES, maxEntries: MAX_ENTRIES }); }
+  clearCache() { return this.cache?.clear() || this.cacheStatus(); }
+
+  async cachedAudio(parameters, produce, check, generation = this.cache?.generation) {
+    const key = this.cache?.key(parameters);
+    const audio = key ? await this.cache.get(key).catch(() => null) : null;
+    check();
+    if (audio) return { audio, engine: parameters.engine, cached: true };
+    const result = await produce();
+    check();
+    // Cache failures must not prevent playing freshly generated audio.
+    if (key) await this.cache.put(key, result.audio, generation).catch(() => {});
+    check();
+    return { ...result, cached: false };
   }
 
   run(command, args, input = '', signal) {
@@ -79,6 +97,7 @@ class SpeechService {
   async synthesize(text, language, preferences) {
     if (typeof text !== 'string' || !text.trim() || text.length > 10000 || !/^[a-z]{2,3}$/.test(language)) throw new Error('发音文本或语言无效（最多 10,000 字符）。');
     const options = validateSpeech(preferences);
+    const cacheGeneration = this.cache?.generation;
     const revision = this.revision + 1;
     await this.cancel();
     if (revision !== this.revision) throw new Error('发音已停止。');
@@ -87,30 +106,34 @@ class SpeechService {
     const check = () => { if (revision !== this.revision || abort.signal.aborted) throw new Error('发音已停止。'); };
     try {
       const supported = ['en', 'zh'].includes(language);
-      const ready = this.resources.kokoroStatus().ready;
+      const model = this.resources.kokoroStatus();
+      const ready = model.ready;
       if (options.engine === 'kokoro' && supported && !ready) throw new Error('请先在设置中下载中英离线语音包。');
       if (options.engine !== 'system' && supported && ready) {
-        const result = await this.worker.request('synthesize', { text, language, voice: options.kokoroVoices[language], rate: options.rate }, { timeout: 180_000 });
-        check();
-        return result;
+        const voice = options.kokoroVoices[language];
+        return await this.cachedAudio({ engine: 'kokoro', model: model.sha256, text, language, voice, rate: options.rate },
+          () => this.worker.request('synthesize', { text, language, voice, rate: options.rate }, { timeout: 180_000 }), check, cacheGeneration);
       }
       const voices = await this.voices();
       check();
       const voice = selectSystemVoice(voices, language, options.systemVoices[language]);
       if (this.platform === 'win32') {
-        const audio = await this.windows({ method: 'synthesize', text, voice: voice.id, rate: options.rate }, abort.signal);
-        check();
-        return { audio, engine: 'system' };
+        return await this.cachedAudio({ engine: 'system', platform: this.platform, system: os.release(), text, language, voice: voice.id, rate: options.rate }, async () => {
+          const audio = await this.windows({ method: 'synthesize', text, voice: voice.id, rate: options.rate }, abort.signal);
+          return { audio, engine: 'system' };
+        }, check, cacheGeneration);
       }
       if (this.platform === 'darwin') {
-        const folder = await fs.mkdtemp(path.join(os.tmpdir(), 'bestdict-speech-'));
-        const output = path.join(folder, 'speech.wav');
-        try {
-          check();
-          await this.run('/usr/bin/say', ['-v', voice.id, '-r', String(Math.round(180 * options.rate)), '-o', output, '--file-format=WAVE', '--data-format=LEI16@22050', '-f', '-'], text, abort.signal);
-          check();
-          return { audio: (await fs.readFile(output)).toString('base64'), engine: 'system' };
-        } finally { await fs.unlink(output).catch(() => {}); await fs.rmdir(folder).catch(() => {}); }
+        return await this.cachedAudio({ engine: 'system', platform: this.platform, system: os.release(), text, language, voice: voice.id, rate: options.rate }, async () => {
+          const folder = await fs.mkdtemp(path.join(os.tmpdir(), 'bestdict-speech-'));
+          const output = path.join(folder, 'speech.wav');
+          try {
+            check();
+            await this.run('/usr/bin/say', ['-v', voice.id, '-r', String(Math.round(180 * options.rate)), '-o', output, '--file-format=WAVE', '--data-format=LEI16@22050', '-f', '-'], text, abort.signal);
+            check();
+            return { audio: (await fs.readFile(output)).toString('base64'), engine: 'system' };
+          } finally { await fs.unlink(output).catch(() => {}); await fs.rmdir(folder).catch(() => {}); }
+        }, check, cacheGeneration);
       }
       throw new Error('当前平台没有可用的系统语音。');
     } finally { if (this.abort === abort) this.abort = null; }

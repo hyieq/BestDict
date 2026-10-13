@@ -4,7 +4,7 @@
   <p><strong>专注本地AI查词翻译<br/>纯净、无广告、无订阅</strong></p>
   <p>A quiet, offline-first desktop dictionary & translator.</p>
   <p>
-    <img src="https://img.shields.io/badge/version-0.4.10-0067b8" alt="Version 0.4.10" />
+    <img src="https://img.shields.io/badge/version-0.4.12-0067b8" alt="Version 0.4.12" />
     <img src="https://img.shields.io/badge/platform-Windows_x64-0078d4" alt="Windows x64" />
     <img src="https://img.shields.io/badge/Electron-React_·_TypeScript-47848f" alt="Electron, React and TypeScript" />
     <a href="LICENSE"><img src="https://img.shields.io/badge/code_license-MIT-3d8558" alt="Code license: MIT" /></a>
@@ -25,13 +25,26 @@ BestDict 是一款 Windows x64 离线词典与翻译软件。按下 `Ctrl + Shif
 - **扩展词库**：按需安装西班牙语、日语、韩语、法语的中文释义词库，支持自动匹配已安装词库。
 - **桌面常驻**：全局快捷键、托盘、自启动、浅深色主题和中英文界面。
 - **毛玻璃界面**：冰蓝浅色与深海深色主题，Windows 11 22H2 及以上使用原生 Acrylic；其他系统保留应用内玻璃层次，并支持减少透明效果和动画。
+- **发音缓存**：生成的音频在本机复用，重启后仍可使用；按文本、语言、音色、语速和模型区分，最多 128 MiB / 1,000 条，超限淘汰最近最少使用的音频，可在 **设置 → 发音 → 音频缓存** 查看占用并清理。
 
 <a id="screenshots"></a>
 ## 界面预览
 
-![离线查词](docs/assets/light-dictionary.png)
+浅色查词：毛玻璃界面、词条发音与顶栏 GitHub 入口。
+
+![浅色查词与词条发音](docs/assets/light-dictionary.png)
+
+深色查词：深海配色与清晰的释义阅读区。
+
+![深色查词](docs/assets/dark-dictionary.png)
+
+本地 AI 翻译：风格选择、译文发音与自定义润色。
 
 ![AI 翻译与紧凑润色栏](docs/assets/ai-translation.png)
+
+发音设置：选择音色与语速，查看并清理音频缓存。
+
+![发音设置与音频缓存](docs/assets/speech-cache-settings.png)
 
 <a id="quick-start"></a>
 ## 开始使用
@@ -59,6 +72,7 @@ AI 通过输入框右侧按钮启动；已有译文时，切换风格会重新�
 扩展词库在 **设置 → 词库** 安装或导入，来源为 [Kaikki / Wiktextract](https://kaikki.org/dictionary/rawdata.html) 的中文维基词典数据。四种语言共享约 224 MB 的源数据缓存；实际词条数随上游更新而变化。支持中文 Wiktextract JSONL / gzip 导入。
 
 原文和译文在本机处理，不上传或记录查询日志。设置与下载资源保存在 `%APPDATA%\BestDict\`；可选资源不进入安装包。模型可能误译，风格改写的效果也会随文本而变化。
+发音音频保存在该目录下的 `speech-cache`，文件名不包含查询文本；清理缓存会删除生成的音频，保留已下载的语音模型。
 
 <a id="development"></a>
 ## 🛠️ Development
@@ -106,28 +120,8 @@ npm.cmd run package
 安装包位于 `release/`。桌面测试使用独立配置，
 不修改真实用户的开机启动，也不关闭正在运行的客户端。
 完整资源与打包后测试见 [测试文档](docs/TESTING.md)。
-常规 CI 执行构建和测试；Release 工作流还会准备内置词库并打包。翻译模型不随 CI 下载。
 `npm test` 默认跳过真实模型推理；显式准备测试模型并设置 `BESTDICT_REAL_ASSETS=1` 后执行完整推理测试。
 打包脚本还会扫描发行资源，发现 Argos / HY 权重时报告失败。
-
-### GitHub 自动发布
-
-仓库的 [Release workflow](.github/workflows/release.yml) 在推送 `v*` 标签时，
-自动准备 Windows x64 运行时与内置词库，执行测试、打包及打包后的桌面测试，
-通过后创建 GitHub Release，上传安装包和 SHA-256 校验文件。
-发布使用 GitHub Actions 自带的临时 `GITHUB_TOKEN`，无需配置个人访问令牌。
-
-发布新版本时，先更新 `package.json`、`package-lock.json` 中的版本及 `CHANGELOG.md`，
-提交并推送代码，再创建与版本一致的标签，例如：
-
-```powershell
-git tag -a v0.4.10 -m "BestDict v0.4.10"
-git push origin v0.4.10
-```
-
-在 GitHub 的 **Actions → Release** 查看构建进度；完成后可在 **Releases** 下载。
-若仓库禁用了 Actions，需先启用。失败时修复原因后可在 Actions 中重跑；
-也可通过 **Run workflow** 选择已有版本标签。已发布版本不会被覆盖，应使用新版本标签。
 
 <details>
 <summary>下载受代理或网络环境影响时</summary>
@@ -151,7 +145,7 @@ npm.cmd run package
 如果 Windows 占用了上次的打包目录，可指定独立输出目录再打包：
 
 ```powershell
-$env:BESTDICT_RELEASE_DIR = "$PWD\release\v0.4.10"
+$env:BESTDICT_RELEASE_DIR = "$PWD\release\v0.4.12"
 npm.cmd run package
 Remove-Item Env:BESTDICT_RELEASE_DIR
 ```

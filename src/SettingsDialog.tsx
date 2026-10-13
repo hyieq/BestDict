@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { BookOpen, Check, Command, Copy, Download, ExternalLink, Leaf, LoaderCircle, Moon, Settings2, Sparkles, Sun, Upload, Volume2, X } from 'lucide-react';
-import type { ResourceCatalog, ResourceProgress, Settings, Status, SpeechCatalog } from './types';
+import { BookOpen, Check, Command, Copy, Download, ExternalLink, Leaf, LoaderCircle, Moon, Settings2, Sparkles, Sun, Trash2, Upload, Volume2, X } from 'lucide-react';
+import type { ResourceCatalog, ResourceProgress, Settings, Status, SpeechCatalog, SpeechCacheStatus } from './types';
 import { createTranslator } from './i18n';
 import { useSpeech } from './useSpeech';
 import SpeechButton from './SpeechButton';
@@ -21,6 +21,17 @@ export default function SettingsDialog({ settings, status, catalog, initialTab, 
   useEffect(() => { preview.stop(); }, [draft.speech, tab, preview.stop]);
   const [voices, setVoices] = useState<SpeechCatalog | null>(null);
   const [voiceError, setVoiceError] = useState('');
+  const [audioCache, setAudioCache] = useState<SpeechCacheStatus | null>(null);
+  const [cacheBusy, setCacheBusy] = useState(false);
+  const [cacheError, setCacheError] = useState('');
+  const [cacheNotice, setCacheNotice] = useState('');
+  useEffect(() => {
+    if (tab !== 'speech' || cacheBusy) return;
+    let active = true;
+    void api.getSpeechCache().then(value => { if (active) { setAudioCache(value); setCacheError(''); } })
+      .catch(() => { if (active) setCacheError('无法读取音频缓存，请重试。'); });
+    return () => { active = false; };
+  }, [tab, preview.loading, cacheBusy]);
   useEffect(() => {
     if (tab !== 'speech') return;
     let active = true;
@@ -61,6 +72,15 @@ export default function SettingsDialog({ settings, status, catalog, initialTab, 
       dictionaryId: draft.dictionaryId, translationEngine: draft.translationEngine, speech: draft.speech })); onClose(); }
     catch (e) { setError(errorText(e)); }
     finally { setSaving(false); }
+  }
+
+  async function clearAudioCache() {
+    setCacheBusy(true); setCacheError(''); setCacheNotice('');
+    try {
+      const value = await api.clearSpeechCache();
+      if (mounted.current) { setAudioCache(value); setCacheNotice('音频缓存已清理。'); }
+    } catch { if (mounted.current) setCacheError('清理音频缓存失败，请重试。'); }
+    finally { if (mounted.current) setCacheBusy(false); }
   }
 
   async function install(id: string, local: boolean) {
@@ -155,6 +175,15 @@ export default function SettingsDialog({ settings, status, catalog, initialTab, 
             {!catalog?.kokoro?.ready && <button className="small-download" disabled={!!job || installPending} onClick={() => void install('kokoro', false)}><Download size={13} />{t('下载语音包')}</button>}
             {downloadStatus('kokoro')}
             <details className="resource-details"><summary>{t('下载选项与模型说明')}</summary><div className="engine-actions"><button className="secondary-button" disabled={!!job || installPending} onClick={() => void install('kokoro', true)}><Upload size={13} />{t('导入语音包')}</button>{copyButton('kokoro')}<button className="source-link" onClick={() => void api.openSource('kokoro').catch(e => setError(errorText(e)))}><ExternalLink size={12} />{t('官方来源')}</button></div></details>
+          </div>
+          <div className="speech-cache" data-testid="speech-cache">
+            <div className="speech-cache-summary"><div><label>{t('音频缓存')}</label><p aria-live="polite">{audioCache ? t('{count} 条 · {size} MiB', { count: audioCache.count.toLocaleString(draft.locale), size: (audioCache.bytes / 1024 / 1024).toFixed(1) }) : t('正在读取缓存…')}</p></div>
+              <button className="secondary-button" disabled={cacheBusy || !audioCache?.count} onClick={() => void clearAudioCache()}>{cacheBusy ? <LoaderCircle size={13} className="spin" /> : <Trash2 size={13} />}{t(cacheBusy ? '正在清理…' : '清理音频缓存')}</button>
+            </div>
+            <p>{t('首次播放后保存在本机，重复播放直接复用。更改音色或语速后重新生成。')}</p>
+            {audioCache && <p>{t('最多 {size} MiB 或 {count} 条，超出后自动清理最久未使用的音频。', { size: audioCache.maxBytes / 1024 / 1024, count: audioCache.maxEntries.toLocaleString(draft.locale) })}</p>}
+            <p>{t('清理只删除音频，保留语音模型。')}</p>
+            {cacheNotice && <p role="status">{t(cacheNotice)}</p>}{cacheError && <p role="alert">{t(cacheError)}</p>}
           </div>
         </>}
         {(error || settings.shortcutError) && <div className="error-banner" role="alert">{t(error || settings.shortcutError)}</div>}

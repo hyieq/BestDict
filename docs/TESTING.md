@@ -1,5 +1,14 @@
 # Testing
 
+## 发音缓存
+
+`node --test tests/speech-cache.test.cjs` 验证重复播放和重启复用、发音参数及模型隔离、
+容量与条目数上限、LRU 淘汰、损坏缓存重建、磁盘失败回退，以及取消和清理期间的并发写入。
+测试使用临时缓存目录和 WAV fixture，避免访问真实用户缓存。
+`npm.cmd run test:speech` 使用真实 IPC、缓存服务和音频播放，替换推理响应为静音 WAV；
+验证重播不调用推理、设置页显示占用与清理、清理保留语音模型和随后重新生成。
+截图保存在 `test-results/speech-cache-settings.png`。
+
 ## 小型测试（不下载模型和完整词库）
 
 ```powershell

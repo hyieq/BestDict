@@ -1,6 +1,6 @@
 import AIStylePicker from './AIStylePicker';
 import { useEffect, useRef, useState } from 'react';
-import { ArrowDown, ArrowLeftRight, ArrowRight, BookOpen, Check, ChevronDown, Copy, Globe2, Keyboard, LoaderCircle, Minus, Search, Settings2, Sparkles, X } from 'lucide-react';
+import { ArrowDown, ArrowLeftRight, ArrowRight, ArrowUpRight, BookOpen, Check, ChevronDown, Copy, Github, Globe2, Keyboard, LoaderCircle, Minus, Search, Settings2, Sparkles, X } from 'lucide-react';
 import SettingsDialog from './SettingsDialog';
 import appIcon from './assets/app-icon.png';
 import { createTranslator } from './i18n';
@@ -250,6 +250,7 @@ export default function App() {
       <header className="titlebar">
         <div className="wordmark">Best<span>Dict</span></div>
         <div className="titlebar-actions"><span className="shortcut-pill"><Keyboard size={13} />{prettyShortcut(settings?.shortcut || 'Control+Shift+D')}</span>
+          <button className="chrome-button github-link" title={t("打开 GitHub 项目")} aria-label={t("打开 GitHub 项目")} onClick={() => void api.openSource('github').catch(e => setError(errorText(e)))}><Github size={19} aria-hidden="true" /><ArrowUpRight size={10} className="external-arrow" aria-hidden="true" /></button>
           <button className="chrome-button" aria-label={t("最小化")} onClick={() => api?.minimize()}><Minus size={17} /></button>
           <button className="chrome-button close" aria-label={t("隐藏窗口")} onClick={() => api?.hide()}><X size={17} /></button>
         </div>

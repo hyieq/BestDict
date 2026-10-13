@@ -31,8 +31,10 @@ export interface ResourceCatalog {
 }
 export interface DesktopAPI {
   getSpeechCatalog(): Promise<SpeechCatalog>;
-  synthesizeSpeech(text: string, language: string): Promise<{ audio: string; engine: string }>;
-  previewSpeech(language: string, settings: SpeechSettings): Promise<{ audio: string; engine: string }>;
+  getSpeechCache(): Promise<SpeechCacheStatus>;
+  clearSpeechCache(): Promise<SpeechCacheStatus>;
+  synthesizeSpeech(text: string, language: string): Promise<{ audio: string; engine: string; cached: boolean }>;
+  previewSpeech(language: string, settings: SpeechSettings): Promise<{ audio: string; engine: string; cached: boolean }>;
   cancelSpeech(): Promise<void>;
   onStopSpeech(callback: () => void): () => void;
   getAppearance(): Promise<{ material: 'acrylic' | 'fallback' | 'solid'; dark: boolean; reducedTransparency: boolean }>;
@@ -61,3 +63,4 @@ declare global { interface Window { bestdict: DesktopAPI } }
 export interface SpeechSettings { engine: 'auto' | 'system' | 'kokoro'; rate: number; systemVoices: Record<string, string>; kokoroVoices: { en: number; zh: number } }
 export interface SpeechVoice { id: string; name: string; language: string }
 export interface SpeechCatalog { system: SpeechVoice[]; kokoro: SpeechVoice[]; systemError: string }
+export interface SpeechCacheStatus { bytes: number; count: number; maxBytes: number; maxEntries: number }

@@ -26,6 +26,8 @@ try {
     pcm.writeUInt32LE(16000, 24); pcm.writeUInt32LE(32000, 28); pcm.writeUInt16LE(2, 32);
     pcm.writeUInt16LE(16, 34); pcm.write('data', 36); pcm.writeUInt32LE(pcm.length - 44, 40);
     globalThis.__speechTest = { pending: [], audio: pcm.toString('base64'), requests: [], cancels: 0 };
+    globalThis.__originalSynthesize = speech.synthesize.bind(speech);
+    globalThis.__originalCancel = speech.cancel.bind(speech);
     speech.synthesize = (text, language, settings) => new Promise(resolve => {
       globalThis.__speechTest.requests.push({ text, language, settings });
       globalThis.__speechTest.pending.push(resolve);
@@ -136,6 +138,71 @@ try {
   await release();
   assert.equal(await page.evaluate(() => window.__played), 5, 'Closing settings discards pending preview');
   assert.equal((await page.evaluate(() => window.bestdict.getSettings())).speech.rate, 1.3, 'Closing settings discards unsaved rate');
+  // Use the real service and disk cache; only model inference is replaced by silent WAV audio.
+  await desktop.evaluate(() => {
+    const { resources, speech } = globalThis.__bestdictNative.getServices();
+    speech.synthesize = globalThis.__originalSynthesize;
+    speech.cancel = globalThis.__originalCancel;
+    resources.kokoroStatus = () => ({ ready: true, sha256: 'cache-ui-model' });
+    globalThis.__cacheGenerations = 0;
+    speech.worker.request = async () => { globalThis.__cacheGenerations++; return { audio: globalThis.__speechTest.audio, engine: 'kokoro' }; };
+  });
+  await page.evaluate(async () => {
+    const current = await window.bestdict.getSettings();
+    await window.bestdict.setSettings({ speech: { ...current.speech, engine: 'kokoro', rate: 1 } });
+  });
+  await page.reload();
+  await page.evaluate(() => {
+    window.__cachePlayed = 0;
+    const play = HTMLMediaElement.prototype.play;
+    HTMLMediaElement.prototype.play = function () { window.__cachePlayed++; this.muted = true; return play.call(this); };
+  });
+  await input.fill('apple');
+  await page.getByTestId('entry-word').filter({ hasText: 'apple' }).waitFor();
+  for (const count of [1, 2]) {
+    await word.getByRole('button', { name: '播放发音' }).click();
+    await page.waitForFunction(count => window.__cachePlayed === count, count);
+    await word.getByRole('button', { name: '停止发音' }).click();
+  }
+  assert.equal(await desktop.evaluate(() => globalThis.__cacheGenerations), 1, 'Replay skips model inference');
+  await page.getByRole('button', { name: '设置', exact: true }).click();
+  await page.getByRole('tab', { name: '发音', exact: true }).click();
+  const cache = page.getByTestId('speech-cache');
+  await cache.getByText(/1 条 ·/).waitFor();
+  await page.locator('#kokoro-zh:not([disabled])').waitFor();
+  await cache.scrollIntoViewIfNeeded();
+  await page.screenshot({ path: 'test-results/speech-cache-settings.png', animations: 'disabled' });
+  await cache.getByRole('button', { name: '清理音频缓存', exact: true }).click();
+  await cache.getByText('音频缓存已清理。').waitFor();
+  assert.equal((await page.evaluate(() => window.bestdict.getSpeechCache())).count, 0);
+  assert.equal(await cache.getByRole('button', { name: '清理音频缓存', exact: true }).isDisabled(), true);
+  assert.equal((await page.evaluate(() => window.bestdict.getResources())).kokoro.ready, true);
+  await desktop.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(780, 580));
+  await cache.scrollIntoViewIfNeeded();
+  const compact = await cache.boundingBox();
+  const viewport = await page.evaluate(() => ({ width: innerWidth, height: innerHeight }));
+  assert.ok(compact.x >= 0 && compact.x + compact.width <= viewport.width, 'Cache controls fit the compact window');
+  await page.evaluate(() => window.bestdict.setSettings({ locale: 'en' }));
+  await page.getByRole('button', { name: '关闭设置' }).click();
+  await page.reload();
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await page.getByRole('tab', { name: 'Speech', exact: true }).click();
+  await page.getByTestId('speech-cache').getByText(/0 clips ·/).waitFor();
+  await page.getByTestId('speech-cache').getByRole('button', { name: 'Clear audio cache', exact: true }).waitFor();
+  await page.getByRole('button', { name: 'Close settings', exact: true }).click();
+  await page.evaluate(() => window.bestdict.setSettings({ locale: 'zh-CN' }));
+  await page.reload();
+  await page.evaluate(() => {
+    window.__cachePlayed = 2;
+    const play = HTMLMediaElement.prototype.play;
+    HTMLMediaElement.prototype.play = function () { window.__cachePlayed++; this.muted = true; return play.call(this); };
+  });
+  await input.fill('apple');
+  await page.getByTestId('entry-word').filter({ hasText: 'apple' }).waitFor();
+  await word.getByRole('button', { name: '播放发音' }).click();
+  await page.waitForFunction(() => window.__cachePlayed === 3);
+  assert.equal(await desktop.evaluate(() => globalThis.__cacheGenerations), 2, 'Playback regenerates after clearing');
+  await word.getByRole('button', { name: '停止发音' }).click();
   assert.deepEqual(errors, []);
-  console.log('Speech UI passed: word pronunciation, unsaved previews, cancellation, stale results, exclusive playback, natural completion, settings persistence.');
+  console.log('Speech UI passed: playback/cancellation/previews, disk cache replay without inference, cache statistics and clearing, model preserved, regeneration after clearing.');
 } finally { await desktop.close(); }

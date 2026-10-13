@@ -21,6 +21,12 @@ body { background: transparent; }
 .wordmark { font-size: 19px; letter-spacing: -.6px; }
 .shortcut-pill { background: var(--surface); border-color: var(--glass-highlight); border-radius: 8px; padding: 6px 9px; }
 .chrome-button { height: 34px; border-radius: 8px; }
+.github-link { position: relative; width: 38px; margin-right: 8px; color: var(--muted); }
+.github-link:hover { color: var(--accent); }
+.github-link .external-arrow { position: absolute; top: 4px; right: 1px; }
+.speech-cache { padding: 14px; margin-top: 16px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
+.speech-cache-summary { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 8px; }
+.speech-cache-summary .secondary-button { margin: 0; font-size: 11px; white-space: nowrap; flex-shrink: 0; }
 .workspace { padding: 8px 26px 18px; }
 .search-row { gap: 12px; }
 .search-box {

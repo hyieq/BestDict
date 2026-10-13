@@ -244,6 +244,8 @@ function setupIPC() {
     };
   });
   handle('speech:catalog', () => speech.catalog());
+  handle('speech:cache-status', () => speech.cacheStatus());
+  handle('speech:clear-cache', () => speech.clearCache());
   handle('speech:synthesize', request => speech.synthesize(request?.text, request?.language, settings.speech));
   handle('speech:preview', request => {
     const samples = { zh: '你好，欢迎使用词典。这是当前音色和语速的试听。', en: 'Hello, welcome to BestDict. This is a preview of your selected voice and speed.' };
@@ -280,6 +282,7 @@ function setupIPC() {
     return installResource(id, isArgos ? selected.filePaths : selected.filePaths[0]);
   });
   handle('resources:source', id => {
+    if (id === 'github') return shell.openExternal('https://github.com/hyieq/BestDict');
     const url = id === 'kokoro' ? resources.kokoroSpec.homepage : id === 'argos' ? resources.argosSpec.homepage : id === 'hy-mt2' ? resources.hySpec.homepage : id === 'hy-license' ? resources.hySpec.licenseUrl : resources.list().find(item => item.id === id)?.homepage;
     if (!url) throw new Error('无效的来源。');
     return shell.openExternal(url);
@@ -306,7 +309,7 @@ else {
     resources = new ResourceManager({ assets, library: process.env.BESTDICT_LIBRARY && testing ? process.env.BESTDICT_LIBRARY : path.join(app.getPath('userData'), 'library'), python,
       script: path.join(root, 'backend', 'worker.py'), progress: data => window?.webContents.send('resources:progress', data) });
     translator = new WorkerClient(python, path.join(root, 'backend', 'worker.py'), resources.argosRoot(), 'translation');
-    speech = new SpeechService({ python, backend: path.join(root, 'backend'), resources });
+    speech = new SpeechService({ python, backend: path.join(root, 'backend'), resources, cacheDirectory: path.join(app.getPath('userData'), 'speech-cache') });
     // Migrate the old global HY selection to the independent manual AI feature.
     if (settings.translationEngine === 'hy') settings.translationEngine = resources.argosStatus().ready ? 'argos' : 'none';
     if (!['none', 'argos'].includes(settings.translationEngine) ||

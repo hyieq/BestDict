@@ -2,6 +2,8 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('bestdict', {
   getSpeechCatalog: () => ipcRenderer.invoke('speech:catalog'),
+  getSpeechCache: () => ipcRenderer.invoke('speech:cache-status'),
+  clearSpeechCache: () => ipcRenderer.invoke('speech:clear-cache'),
   synthesizeSpeech: (text, language) => ipcRenderer.invoke('speech:synthesize', { text, language }),
   previewSpeech: (language, settings) => ipcRenderer.invoke('speech:preview', { language, settings }),
   cancelSpeech: () => ipcRenderer.invoke('speech:cancel'),
