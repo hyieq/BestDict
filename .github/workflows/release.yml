@@ -90,7 +90,14 @@ jobs:
       - name: Test packaged desktop app
         run: |
           $env:BESTDICT_TEST_EXE = Join-Path $PWD 'release/win-unpacked/BestDict.exe'
-          npm run test:desktop
+          npm run test:desktop 2>&1 | Tee-Object -FilePath release-desktop.log
+          $testExit = $LASTEXITCODE
+          if ($testExit -ne 0) {
+            $tail = (Get-Content release-desktop.log -Tail 80) -join "`n"
+            $message = $tail.Replace('%', '%25').Replace("`r", '%0D').Replace("`n", '%0A')
+            Write-Output "::error title=Packaged desktop test failed::$message"
+            exit $testExit
+          }
 
       - name: Prepare checksum and release notes
         run: |
@@ -154,4 +161,5 @@ jobs:
           path: |
             test-results/
             release-build.log
+            release-desktop.log
           if-no-files-found: ignore
