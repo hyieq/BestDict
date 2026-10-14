@@ -26,7 +26,11 @@ child.on('close', code => {
   clearTimeout(timer);
   log.end();
   if (code !== 0) {
-    const message = tail.replace(/%/g, '%25').replace(/\r/g, '%0D').replace(/\n/g, '%0A');
+    // GitHub truncates annotation messages. Preserve actual TAP failures instead
+    // of filling the visible annotation with earlier successful test output.
+    const failures = tail.match(/(?:^|\n)not ok[^\n]*[\s\S]*?(?=\n(?:# Subtest:|ok \d|not ok \d|1\.\.)|$)/g);
+    const details = (failures?.length ? failures.join('\n') : tail.slice(-3500)).slice(0, 3500);
+    const message = details.replace(/%/g, '%25').replace(/\r/g, '%0D').replace(/\n/g, '%0A');
     console.error(`::error title=${name} failed::${message}`);
   }
   process.exitCode = code ?? 1;
