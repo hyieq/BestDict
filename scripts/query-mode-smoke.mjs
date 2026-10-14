@@ -35,7 +35,7 @@ try {
   const before = await calls();
   await page.waitForTimeout(700);
   assert.equal(await calls(), before, 'Editing after one-shot translation returns to dictionary lookup.');
-  await input.press('Control+Enter');
+  await input.press('ControlOrMeta+Enter');
   await page.getByTestId('translation-result').waitFor();
   await page.getByRole('button', { name: '清空', exact: true }).click();
   const afterClear = await calls();
@@ -52,13 +52,13 @@ try {
   await page.getByTestId('translation-result').filter({ hasText: 'apple' }).waitFor();
   await input.fill('banana');
   await page.getByTestId('translation-result').filter({ hasText: 'banana' }).waitFor();
-  await input.press('Control+A');
+  await input.press('ControlOrMeta+A');
   await input.press('Backspace');
   assert.equal(await automatic.getAttribute('aria-pressed'), 'true', 'Clearing explicit sentence mode restores Auto.');
   await input.fill('apple');
   await page.getByTestId('entry-word').filter({ hasText: 'apple' }).waitFor();
   await desktop.evaluate(() => { globalThis.__delayTranslation = true; });
-  await input.press('Control+Enter');
+  await input.press('ControlOrMeta+Enter');
   await page.getByText('正在翻译…', { exact: true }).waitFor();
   await input.fill('banana');
   await page.getByTestId('entry-word').filter({ hasText: 'banana' }).waitFor();

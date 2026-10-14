@@ -55,12 +55,14 @@ jobs:
           echo "BESTDICT_TEST_EXE=$RUNNER_TEMP/BestDict relocation/BestDict.app/Contents/MacOS/BestDict" >> "$GITHUB_ENV"
       - name: Test packaged desktop
         run: |
-          node scripts/ci-command.mjs desktop npm run test:desktop
-          node scripts/ci-command.mjs query-mode npm run test:query-mode
-          node scripts/ci-command.mjs ai-styles npm run test:ai-styles
-          node scripts/ci-command.mjs ai-menu npm run test:ai-menu
-          node scripts/ci-command.mjs speech npm run test:speech
-          node scripts/ci-command.mjs mini npm run test:mini
+          failed=0
+          node scripts/ci-command.mjs desktop npm run test:desktop || failed=1
+          node scripts/ci-command.mjs query-mode npm run test:query-mode || failed=1
+          node scripts/ci-command.mjs ai-styles npm run test:ai-styles || failed=1
+          node scripts/ci-command.mjs ai-menu npm run test:ai-menu || failed=1
+          node scripts/ci-command.mjs speech npm run test:speech || failed=1
+          node scripts/ci-command.mjs mini npm run test:mini || failed=1
+          exit "$failed"
       - name: Checksums
         run: |
           cd release
