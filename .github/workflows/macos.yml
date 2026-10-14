@@ -46,21 +46,21 @@ jobs:
           npm test
           python -m unittest discover -s tests -p test_speech_installer.py
       - name: Build ad-hoc signed DMG and ZIP
-        run: npm run package
+        run: node scripts/ci-command.mjs package npm run package
       - name: Verify relocated application and native dependencies
         run: |
           mkdir -p "$RUNNER_TEMP/BestDict relocation"
           ditto release/mac-arm64/BestDict.app "$RUNNER_TEMP/BestDict relocation/BestDict.app"
-          python scripts/verify_macos_bundle.py "$RUNNER_TEMP/BestDict relocation/BestDict.app"
+          node scripts/ci-command.mjs bundle python scripts/verify_macos_bundle.py "$RUNNER_TEMP/BestDict relocation/BestDict.app"
           echo "BESTDICT_TEST_EXE=$RUNNER_TEMP/BestDict relocation/BestDict.app/Contents/MacOS/BestDict" >> "$GITHUB_ENV"
       - name: Test packaged desktop
         run: |
-          npm run test:desktop
-          npm run test:query-mode
-          npm run test:ai-styles
-          npm run test:ai-menu
-          npm run test:speech
-          npm run test:mini
+          node scripts/ci-command.mjs desktop npm run test:desktop
+          node scripts/ci-command.mjs query-mode npm run test:query-mode
+          node scripts/ci-command.mjs ai-styles npm run test:ai-styles
+          node scripts/ci-command.mjs ai-menu npm run test:ai-menu
+          node scripts/ci-command.mjs speech npm run test:speech
+          node scripts/ci-command.mjs mini npm run test:mini
       - name: Checksums
         run: |
           cd release
