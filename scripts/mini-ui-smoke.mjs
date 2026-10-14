@@ -63,7 +63,7 @@ try {
     pcm.writeUInt32LE(16000, 24); pcm.writeUInt32LE(32000, 28); pcm.writeUInt16LE(2, 32);
     pcm.writeUInt16LE(16, 34); pcm.write('data', 36); pcm.writeUInt32LE(pcm.length - 44, 40);
     globalThis.__miniGenerations = 0;
-    speech.worker.request = async () => { globalThis.__miniGenerations++; return { audio: pcm.toString('base64'), engine: 'kokoro' }; };
+    speech.worker.request = async method => { if (method === 'prepare') return { ready: true }; globalThis.__miniGenerations++; return { audio: pcm.toString('base64'), engine: 'kokoro' }; };
   });
   await page.evaluate(async () => {
     const settings = await window.bestdict.getSettings();

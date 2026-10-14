@@ -414,5 +414,6 @@
   "更新信息无效，请稍后重试。": "The update information is invalid. Try again later.",
   "检查更新超时，请重试。": "The update check timed out. Try again.",
   "检查更新失败，请检查网络后重试。": "Update check failed. Check your connection and try again.",
-  "没有适用于当前系统的更新安装包。": "No update installer is available for this platform."
+  "没有适用于当前系统的更新安装包。": "No update installer is available for this platform.",
+  "发音请求无效。": "The speech request is invalid."
 }

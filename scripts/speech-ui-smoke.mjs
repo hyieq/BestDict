@@ -156,7 +156,7 @@ try {
     speech.cancel = globalThis.__originalCancel;
     resources.kokoroStatus = () => ({ ready: true, sha256: 'cache-ui-model' });
     globalThis.__cacheGenerations = 0;
-    speech.worker.request = async () => { globalThis.__cacheGenerations++; return { audio: globalThis.__speechTest.audio, engine: 'kokoro' }; };
+    speech.worker.request = async method => { if (method === 'prepare') return { ready: true }; globalThis.__cacheGenerations++; return { audio: globalThis.__speechTest.audio, engine: 'kokoro' }; };
   });
   await page.evaluate(async () => {
     const current = await window.bestdict.getSettings();

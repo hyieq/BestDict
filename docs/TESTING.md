@@ -79,6 +79,37 @@ Electron 窗口截图作为屏幕输入，报告中的 nativeCapture 标明是�
 
 ## 发音缓存
 
+`node --test tests/speech-stream.test.cjs` 验证中英分段保留全部文本、数字/URL/缩写、中文词表中的多音词、
+首段长度、Windows 嵌入式 Python 的辅助模块导入、请求与窗口隔离、旧窗口不能误取消新请求、取消后丢弃旧片段，
+以及流式请求的停滞超时（持续产生片段时不按固定总时长终止）。
+`npm run test:speech` 同时执行流式播放交互测试，使用真实 PCM / Web Audio 时钟验证
+完整音频生成前开始播放、PCM 符号/字节序/顺序正确、连续调度、不重复播放末尾 WAV、缓存重播、慢推理缓冲、
+取消/改词/隐藏、生成中清理缓存和中途失败。推理使用静音 fixture，用户配置不变。
+`npm run test:capture` 另验证截图结果窗口的真实分段 IPC 和自然播放结束。
+
+真实 Kokoro 长文验证：设置 `BESTDICT_REAL_SPEECH=1` 后运行
+`node scripts/speech-stream-ui-smoke.mjs`，使用已有模型验证英文段落、英文长单句、
+中文段落、无标点中文、短问候接长句和两倍语速，测量点击到音频时钟开始、首段早于完整生成、
+所有样本按顺序播放一次及额外段间空档。音频静音，使用隔离缓存，报告在
+`test-results/speech-stream/real.json`。默认模型目录与下述耗时诊断相同；不下载权重。
+同时设置 `BESTDICT_REAL_SPEECH_LONG=1` 可单独验证约 40 秒长文的预生成节奏和连续播放，
+结果在 `test-results/speech-stream/real-long.json`。
+`BESTDICT_REAL_SPEECH_CASE` 可指定逗号分隔的样本名，只验证有变化的场景，结果在 `real-selected.json`。
+
+`node --test tests/speech-standby.test.cjs` 使用真实 Python 子进程及轻量 fixture，
+验证并发激活和首次点击共用预热、可见期间保持模型、隐藏后延迟释放和快速唤醒复用、
+再次激活重新加载、取消推理、预热期间取消点击、系统语音切换、模型替换及退出。
+隐藏空闲超时仅在测试实例中缩短；正式客户端为 2 分钟。
+
+Kokoro 真实耗时诊断：构建前端后运行 `node scripts/profile-speech.mjs`。
+默认使用 `.cache/speech-validation/kokoro/model` 中已有模型；可用
+`BESTDICT_PROFILE_KOKORO` 指向其他已有模型目录，脚本不会下载或修改模型。
+使用临时 Python worker 副本记录依赖导入、模型初始化、合成及 WAV 编码耗时，
+比较当前服务、保留进程、激活待命及 1/2/4/8 线程，并在隔离客户端中测量点击到真实音频
+`playing` 事件的时间。播放静音，配置和音频缓存均隔离，不修改安装客户端。
+另通过实际窗口隐藏/显示验证待命保留、超时释放及恢复预热，测试实例中缩短释放超时。
+结果保存在 `test-results/speech-latency/report.json`；该诊断需要真实模型，常规 CI 不运行。
+
 `node --test tests/speech-cache.test.cjs` 验证重复播放和重启复用、发音参数及模型隔离、
 容量与条目数上限、LRU 淘汰、损坏缓存重建、磁盘失败回退，以及取消和清理期间的并发写入。
 测试使用临时缓存目录和 WAV fixture，避免访问真实用户缓存。

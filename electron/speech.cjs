@@ -7,18 +7,61 @@ const { kokoroVoices, validateSpeech, selectSystemVoice } = require('./speech-op
 const { SpeechCache, MAX_BYTES, MAX_ENTRIES } = require('./speech-cache.cjs');
 
 class SpeechService {
-  constructor({ python, backend, resources, platform = process.platform, cacheDirectory, cacheLimits }) {
+  constructor({ python, backend, resources, platform = process.platform, cacheDirectory, cacheLimits, standbyTimeout = 120_000 }) {
     this.backend = backend;
     this.resources = resources;
     this.platform = platform;
-    this.worker = new WorkerClient(python, path.join(backend, 'speech_worker.py'), resources.kokoroRoot(), 'speech');
+    this.worker = new WorkerClient(python, path.join(backend, 'speech_worker.py'), resources.kokoroRoot(), 'speech', { idleTimeout: standbyTimeout });
     this.children = new Set();
     this.revision = 0;
+    this.modelRevision = 0;
+    this.warmup = null;
+    this.prepared = null;
+    this.suspended = false;
     this.cache = cacheDirectory ? new SpeechCache(cacheDirectory, cacheLimits) : null;
   }
 
   cacheStatus() { return this.cache?.status() || Promise.resolve({ bytes: 0, count: 0, maxBytes: MAX_BYTES, maxEntries: MAX_ENTRIES }); }
   clearCache() { return this.cache?.clear() || this.cacheStatus(); }
+
+  async setActive(active, preferences) {
+    const options = validateSpeech(preferences);
+    const enabled = !this.suspended && options.engine !== 'system' && this.resources.kokoroStatus().ready;
+    this.worker.keepAlive = active && enabled;
+    this.worker.armIdle();
+    if (!enabled) {
+      // Activation manages model residency; it must not cancel system speech
+      // (or a manually selected preview) that is already being generated.
+      if (this.abort) return;
+      this.modelRevision++;
+      this.prepared = null;
+      return this.worker.stop();
+    }
+    if (!active) return this.cancel();
+    return this.prepare(options);
+  }
+
+  prepare(options) {
+    if (this.suspended || options.engine === 'system' || !this.resources.kokoroStatus().ready) return Promise.resolve();
+    // American voices share one model/lexicon, as do the selected Chinese voices.
+    const voice = options.kokoroVoices.en === 2 ? 2 : 0;
+    if (!this.warmup && this.prepared?.voice === voice && this.prepared.child === this.worker.process && this.worker.process) return Promise.resolve();
+    if (this.warmup?.voice === voice && this.warmup.revision === this.modelRevision) return this.warmup.promise;
+    const task = { voice, revision: this.modelRevision };
+    this.warmup = task;
+    task.promise = (async () => {
+      await this.worker.stopping;
+      if (task.revision !== this.modelRevision) throw new Error('发音已停止。');
+      const request = this.worker.request('prepare', { voice }, { timeout: 180_000 });
+      const child = this.worker.process;
+      await request;
+      if (task.revision !== this.modelRevision) throw new Error('发音已停止。');
+      this.prepared = { voice, child };
+    })().finally(() => { if (this.warmup === task) this.warmup = null; });
+    return task.promise;
+  }
+
+  suspend() { this.suspended = true; this.worker.keepAlive = false; return this.cancel({ unload: true }); }
 
   async cachedAudio(parameters, produce, check, generation = this.cache?.generation) {
     const key = this.cache?.key(parameters);
@@ -87,14 +130,21 @@ class SpeechService {
     return { system: voices, kokoro: kokoroVoices, systemError };
   }
 
-  cancel() {
+  cancel({ unload = false } = {}) {
     this.revision++;
     this.abort?.abort();
     this.abort = null;
-    return this.worker.stop();
+    // Stopping playback must not discard an idle model or interrupt background preparation.
+    // Real inference is synchronous in Python, so cancelling it still terminates its process.
+    if (unload || [...this.worker.pending.values()].some(task => task.method === 'synthesize')) {
+      this.modelRevision++;
+      this.prepared = null;
+      return this.worker.stop();
+    }
+    return this.worker.stopping;
   }
 
-  async synthesize(text, language, preferences) {
+  async synthesize(text, language, preferences, { onChunk } = {}) {
     if (typeof text !== 'string' || !text.trim() || text.length > 10000 || !/^[a-z]{2,3}$/.test(language)) throw new Error('发音文本或语言无效（最多 10,000 字符）。');
     const options = validateSpeech(preferences);
     const cacheGeneration = this.cache?.generation;
@@ -107,12 +157,30 @@ class SpeechService {
     try {
       const supported = ['en', 'zh'].includes(language);
       const model = this.resources.kokoroStatus();
-      const ready = model.ready;
+      const ready = model.ready && !this.suspended;
       if (options.engine === 'kokoro' && supported && !ready) throw new Error('请先在设置中下载中英离线语音包。');
       if (options.engine !== 'system' && supported && ready) {
         const voice = options.kokoroVoices[language];
-        return await this.cachedAudio({ engine: 'kokoro', model: model.sha256, text, language, voice, rate: options.rate },
-          () => this.worker.request('synthesize', { text, language, voice, rate: options.rate }, { timeout: 180_000 }), check, cacheGeneration);
+        const singleWord = /^[A-Za-zÀ-ɏ0-9]+(?:['’./-][A-Za-zÀ-ɏ0-9]+)*$/.test(text.trim()) || /^[\u4e00-\u9fff]{1,8}$/.test(text.trim());
+        const pureChinese = /^[\u4e00-\u9fff\s。，！？；：、（）“”‘’「」『』]+$/.test(text);
+        return await this.cachedAudio({ engine: 'kokoro', model: model.sha256, text, language, voice, rate: options.rate,
+          ...(!singleWord ? { pipeline: 1 } : {}),
+          ...(language === 'zh' && !pureChinese ? { englishAccent: options.kokoroVoices.en === 2 ? 'gb' : 'us' } : {}) },
+          async () => {
+            await this.prepare(options);
+            check();
+            const request = this.worker.request('synthesize', { text, language, voice, englishVoice: options.kokoroVoices.en, rate: options.rate, stream: !!onChunk }, {
+              timeout: 180_000,
+              onEvent: chunk => { if (revision === this.revision && !abort.signal.aborted) onChunk?.(chunk); },
+            });
+            const child = this.worker.process;
+            const result = await request;
+            check();
+            // A preview can select a different accent while background preparation is queued.
+            const preparedVoice = options.kokoroVoices.en === 2 ? 2 : 0;
+            if (this.prepared?.voice !== preparedVoice || this.prepared.child !== child) this.prepared = { voice: preparedVoice, child };
+            return result;
+          }, check, cacheGeneration);
       }
       const voices = await this.voices();
       check();
@@ -138,6 +206,6 @@ class SpeechService {
       throw new Error('当前平台没有可用的系统语音。');
     } finally { if (this.abort === abort) this.abort = null; }
   }
-  stop() { this.cancel(); for (const child of this.children) child.kill(); }
+  stop() { this.worker.keepAlive = false; const stopped = this.cancel({ unload: true }); for (const child of this.children) child.kill(); return stopped; }
 }
 module.exports = { SpeechService };

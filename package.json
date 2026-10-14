@@ -1,6 +1,6 @@
 {
   "name": "bestdict",
-  "version": "0.4.17",
+  "version": "0.4.18",
   "private": true,
   "description": "A quiet, offline-first bilingual desktop dictionary",
   "author": "BestDict",
@@ -11,7 +11,7 @@
     "build": "tsc --noEmit && vite build",
     "start": "electron .",
     "test": "node --test tests/*.test.cjs",
-    "test:unit": "node --test tests/resources.test.cjs tests/hy.test.cjs tests/query-policy.test.cjs tests/updates.test.cjs tests/release.test.cjs",
+    "test:unit": "node --test tests/resources.test.cjs tests/hy.test.cjs tests/query-policy.test.cjs tests/updates.test.cjs tests/release.test.cjs tests/speech-cache.test.cjs tests/speech-standby.test.cjs tests/speech-stream.test.cjs",
     "test:desktop": "node scripts/smoke.mjs",
     "test:glass": "node scripts/glass-ui-smoke.mjs",
     "test:mini": "node scripts/mini-ui-smoke.mjs",
@@ -22,7 +22,7 @@
     "test:ai-styles": "node scripts/ai-style-smoke.mjs",
     "test:ai-menu": "node scripts/ai-menu-smoke.mjs",
     "test:query-mode": "node scripts/query-mode-smoke.mjs",
-    "test:speech": "node scripts/speech-ui-smoke.mjs",
+    "test:speech": "node scripts/speech-ui-smoke.mjs && node scripts/speech-stream-ui-smoke.mjs",
     "test:settings": "node scripts/settings-ui-smoke.mjs"
   },
   "dependencies": {

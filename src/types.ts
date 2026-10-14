@@ -48,9 +48,10 @@ export interface DesktopAPI {
   getSpeechCatalog(): Promise<SpeechCatalog>;
   getSpeechCache(): Promise<SpeechCacheStatus>;
   clearSpeechCache(): Promise<SpeechCacheStatus>;
-  synthesizeSpeech(text: string, language: string): Promise<{ audio: string; engine: string; cached: boolean }>;
-  previewSpeech(language: string, settings: SpeechSettings): Promise<{ audio: string; engine: string; cached: boolean }>;
-  cancelSpeech(): Promise<void>;
+  synthesizeSpeech(text: string, language: string, requestId?: string): Promise<SpeechAudio>;
+  previewSpeech(language: string, settings: SpeechSettings, requestId?: string): Promise<SpeechAudio>;
+  onSpeechChunk(callback: (chunk: SpeechChunk) => void): () => void;
+  cancelSpeech(requestId?: string): Promise<void>;
   onStopSpeech(callback: () => void): () => void;
   getAppearance(): Promise<{ material: 'acrylic' | 'fallback' | 'solid'; dark: boolean; reducedTransparency: boolean }>;
   onAppearance(callback: (appearance: { material: 'acrylic' | 'fallback' | 'solid'; dark: boolean; reducedTransparency: boolean }) => void): () => void;
@@ -81,4 +82,6 @@ export interface SpeechSettings { engine: 'auto' | 'system' | 'kokoro'; rate: nu
 export interface SpeechVoice { id: string; name: string; language: string }
 export interface SpeechCatalog { system: SpeechVoice[]; kokoro: SpeechVoice[]; systemError: string }
 export interface SpeechCacheStatus { bytes: number; count: number; maxBytes: number; maxEntries: number }
+export interface SpeechAudio { audio?: string; engine: string; cached: boolean; streamed?: boolean }
+export interface SpeechChunk { requestId: string; sequence: number; pcm: string; sampleRate: number; generationMs: number }
 export interface OCRStatus { ready: boolean; supported: boolean; bytes: number; progress: { received: number; total: number } | null }

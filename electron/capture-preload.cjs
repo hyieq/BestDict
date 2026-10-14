@@ -10,8 +10,18 @@ contextBridge.exposeInMainWorld('capture', {
   copy: text => ipcRenderer.invoke('capture:copy', text),
   pin: value => ipcRenderer.invoke('capture:pin', value),
   open: (text, settings) => ipcRenderer.invoke('capture:open', text, settings),
-  speech: (text, language) => ipcRenderer.invoke('capture:speech', text, language),
-  stopSpeech: () => ipcRenderer.invoke('capture:stop-speech'),
+  speech: (text, language, requestId) => ipcRenderer.invoke('capture:speech', text, language, requestId),
+  onSpeechChunk: callback => {
+    const listener = (_event, data) => callback(data);
+    ipcRenderer.on('speech:chunk', listener);
+    return () => ipcRenderer.removeListener('speech:chunk', listener);
+  },
+  stopSpeech: requestId => ipcRenderer.invoke('capture:stop-speech', requestId),
+  onStopSpeech: callback => {
+    const listener = () => callback();
+    ipcRenderer.on('speech:stop', listener);
+    return () => ipcRenderer.removeListener('speech:stop', listener);
+  },
   onState: callback => {
     const listener = (_event, data) => callback(data);
     ipcRenderer.on('capture:state', listener);

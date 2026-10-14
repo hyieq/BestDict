@@ -2,12 +2,14 @@ const { spawn } = require('node:child_process');
 const { createInterface } = require('node:readline');
 
 class WorkerClient {
-  constructor(python, script, assets, kind) {
+  constructor(python, script, assets, kind, { idleTimeout = 60_000 } = {}) {
     this.config = { python, script, assets, kind };
     this.pending = new Map();
     this.nextId = 0;
     this.process = null;
     this.idleTimer = null;
+    this.idleTimeout = idleTimeout;
+    this.keepAlive = false;
     this.stopping = Promise.resolve();
   }
 
@@ -28,6 +30,11 @@ class WorkerClient {
       if (response.event === 'progress') { this.onProgress?.(response.data); return; }
       const task = this.pending.get(response.id);
       if (!task) return;
+      if (response.event === 'audio') {
+        if (task.onEvent) task.refresh();
+        try { task.onEvent?.(response.data); } catch (error) { this.stop(error); }
+        return;
+      }
       clearTimeout(task.timer);
       this.pending.delete(response.id);
       if (response.error) task.reject(new Error(response.error));
@@ -47,22 +54,24 @@ class WorkerClient {
 
   armIdle() {
     clearTimeout(this.idleTimer);
-    if (['translation', 'speech', 'ocr'].includes(this.config.kind) && !this.pending.size) {
-      this.idleTimer = setTimeout(() => this.stop(), 60_000);
+    if (this.process && !this.keepAlive && ['translation', 'speech', 'ocr'].includes(this.config.kind) && !this.pending.size) {
+      this.idleTimer = setTimeout(() => this.stop(), this.idleTimeout);
       this.idleTimer.unref();
     }
   }
 
-  request(method, params = {}, { signal, timeout = 90_000 } = {}) {
+  request(method, params = {}, { signal, timeout = 90_000, onEvent } = {}) {
     if (signal?.aborted) return Promise.reject(new Error('请求已取消'));
     clearTimeout(this.idleTimer);
     this.start();
     const id = ++this.nextId;
     return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => {
-        this.stop(new Error('离线处理超时，请缩短文本后重试。'));
-      }, timeout);
-      this.pending.set(id, { resolve, reject, timer });
+      const task = { resolve, reject, timer: null, method, onEvent, refresh: () => {
+        clearTimeout(task.timer);
+        task.timer = setTimeout(() => this.stop(new Error('离线处理超时，请缩短文本后重试。')), timeout);
+      } };
+      task.refresh();
+      this.pending.set(id, task);
       this.process.stdin.write(JSON.stringify({ id, method, ...params }) + '\n');
     });
   }

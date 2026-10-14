@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { ArrowUpRight, Check, Copy, LoaderCircle, Pin, ScanLine, Settings2, Volume2, X } from 'lucide-react';
 import { createTranslator } from './i18n';
-import type { Translation } from './types';
+import type { Translation, SpeechAudio, SpeechChunk } from './types';
+import { useSpeech } from './useSpeech';
 import './capture.css';
 
 type Rect = { x: number; y: number; width: number; height: number };
@@ -10,10 +11,13 @@ declare global { interface Window { capture: {
   init(): Promise<State>; select(rect: Rect): Promise<void>; cancel(): Promise<void>; close(): Promise<void>; retry(): Promise<void>;
   translate(text: string, direction: string, engine: string): Promise<Translation>; cancelWork(): Promise<void>;
   copy(text: string): Promise<void>; pin(value: boolean): Promise<void>; open(text: string, settings?: boolean): Promise<void>;
-  speech(text: string, language: string): Promise<{ audio: string }>; stopSpeech(): Promise<void>;
+  speech(text: string, language: string, requestId?: string): Promise<SpeechAudio>; stopSpeech(requestId?: string): Promise<void>;
+  onSpeechChunk(callback: (chunk: SpeechChunk) => void): () => void;
+  onStopSpeech(callback: () => void): () => void;
   onState(callback: (state: State) => void): () => void;
 } } }
 const api = window.capture;
+const speechTransport = { synthesizeSpeech: api?.speech, cancelSpeech: api?.stopSpeech, onSpeechChunk: api?.onSpeechChunk, onStopSpeech: api?.onStopSpeech };
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e)).replace(/^Error invoking remote method '[^']+': Error: /, '');
 
 export default function Capture() {
@@ -71,18 +75,13 @@ function Result({ state, t }: { state: State; t: (s: string) => string }) {
   const [direction, setDirection] = useState('auto');
   const [engine, setEngine] = useState('auto');
   const [pinned, setPinned] = useState(true);
-  const [speaking, setSpeaking] = useState(false);
+  const speech = useSpeech(speechTransport);
+  const speaking = speech.active !== null;
   const revision = useRef(0);
-  const audio = useRef<{ player: HTMLAudioElement; url: string } | null>(null);
-  const speechRevision = useRef(0);
   const autoStarted = useRef(false);
   const recognizing = state.phase === 'recognizing';
   const hasEngine = state.engines?.hy || state.engines?.argos;
-  function stopSpeech() {
-    speechRevision.current++;
-    if (audio.current) { audio.current.player.pause(); URL.revokeObjectURL(audio.current.url); audio.current = null; }
-    setSpeaking(false); void api.stopSpeech().catch(() => {});
-  }
+  const stopSpeech = speech.stop;
   function cancel() { revision.current++; setBusy(false); stopSpeech(); void api.cancelWork().catch(() => {}); }
   async function run(source = text) {
     const current = ++revision.current;
@@ -105,19 +104,9 @@ function Result({ state, t }: { state: State; t: (s: string) => string }) {
   }, []);
   async function copy(value: string) { try { await api.copy(value); setNotice(t('已复制')); } catch (e) { setError(message(e)); } }
   async function speak() {
-    if (speaking) { stopSpeech(); return; }
     if (!translation) return;
-    stopSpeech(); const current = speechRevision.current; setSpeaking(true); setError('');
-    try {
-      const result = await api.speech(translation.text, translation.direction.split('-').at(-1) || 'zh');
-      if (speechRevision.current !== current) return;
-      const bytes = Uint8Array.from(atob(result.audio), ch => ch.charCodeAt(0));
-      const url = URL.createObjectURL(new Blob([bytes], { type: 'audio/wav' }));
-      const player = new Audio(url); audio.current = { player, url };
-      player.onended = stopSpeech;
-      player.onerror = () => { stopSpeech(); setError(t('音频播放失败，请重试。')); };
-      await player.play();
-    } catch (e) { if (speechRevision.current === current) { stopSpeech(); setError(message(e)); } }
+    setError('');
+    await speech.toggle('capture', translation);
   }
   return <div className="capture-result" data-testid="capture-result">
     <header className="capture-title"><span><ScanLine size={18} />{t('截图翻译')}</span><div>
@@ -135,7 +124,7 @@ function Result({ state, t }: { state: State; t: (s: string) => string }) {
       <section className="capture-output" aria-live="polite"><div className="capture-label"><strong>{t('译文')}</strong>{translation && <div><button className="icon-button" aria-label={t('播放译文')} aria-pressed={speaking} onClick={() => void speak()}><Volume2 size={15} /></button><button className="icon-button" aria-label={t('复制译文')} onClick={() => void copy(translation.text)}><Copy size={15} /></button></div>}</div>
         {recognizing || busy ? <p className="capture-wait"><LoaderCircle size={17} className="spin" />{t(recognizing ? '正在识别文字…' : '正在翻译…')}</p> : translation ? <><p className="capture-translated">{translation.text}</p><small>{translation.engine}</small></> : <p className="capture-hint">{t(hasEngine ? '识别完成后自动翻译，也可修改原文后重新翻译。' : '请先在设置中下载并启用翻译模型。')}</p>}
       </section>
-      {(error || state.error) && <div className="error-banner" role="alert">{t(error || state.error || '')}</div>}
+      {(error || speech.error || state.error) && <div className="error-banner" role="alert">{t(error || speech.error || state.error || '')}</div>}
       {!hasEngine && <button className="secondary-button" onClick={() => void api.open(text, true)}><Settings2 size={14} />{t('打开设置')}</button>}
       {notice && <p className="capture-notice" role="status"><Check size={13} />{notice}</p>}
     </div>

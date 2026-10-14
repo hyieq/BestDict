@@ -122,6 +122,46 @@ try {
   await result.getByRole('button', { name: '置顶', exact: true }).click();
   assert.equal(await desktop.evaluate(() => globalThis.__bestdictNative.getServices().capture.result.isAlwaysOnTop()), false);
   await result.screenshot({ path: path.join(output, 'translation-result.png') });
+  // Actual capture speech IPC and shared streaming player; only inference is silent.
+  await desktop.evaluate(() => {
+    const { resources, speech } = globalThis.__bestdictNative.getServices();
+    resources.kokoroStatus = () => ({ ready: true, sha256: 'capture-speech-fixture' });
+    const pcm = Buffer.alloc(16000 * 2);
+    const wav = Buffer.alloc(44 + pcm.length * 2);
+    wav.write('RIFF'); wav.writeUInt32LE(wav.length - 8, 4); wav.write('WAVEfmt ', 8);
+    wav.writeUInt32LE(16, 16); wav.writeUInt16LE(1, 20); wav.writeUInt16LE(1, 22);
+    wav.writeUInt32LE(16000, 24); wav.writeUInt32LE(32000, 28); wav.writeUInt16LE(2, 32);
+    wav.writeUInt16LE(16, 34); wav.write('data', 36); wav.writeUInt32LE(wav.length - 44, 40);
+    globalThis.__captureSpeech = { completed: false };
+    speech.worker.request = async (method, params, options) => {
+      if (method === 'prepare') return { ready: true };
+      const chunk = { pcm: pcm.toString('base64'), sampleRate: 16000, generationMs: 200 };
+      options.onEvent({ ...chunk, sequence: 0 });
+      await new Promise(resolve => { globalThis.__captureSpeech.complete = () => { options.onEvent({ ...chunk, sequence: 1 }); resolve(); }; });
+      globalThis.__captureSpeech.completed = true;
+      return { audio: wav.toString('base64'), engine: 'kokoro', streamed: true };
+    };
+  });
+  await main.evaluate(async () => { const settings = await window.bestdict.getSettings(); await window.bestdict.setSettings({ speech: { ...settings.speech, engine: 'kokoro' } }); });
+  await result.evaluate(() => {
+    window.__captureSpeechChunks = 0;
+    const gain = AudioContext.prototype.createGain;
+    AudioContext.prototype.createGain = function () { const node = gain.call(this); node.gain.value = 0; return node; };
+    const buffer = AudioContext.prototype.createBufferSource;
+    AudioContext.prototype.createBufferSource = function () {
+      const node = buffer.call(this), start = node.start.bind(node);
+      node.start = (...args) => { window.__captureSpeechChunks++; start(...args); };
+      return node;
+    };
+  });
+  await result.waitForTimeout(100);
+  const voice = result.getByRole('button', { name: '播放译文', exact: true });
+  await voice.click();
+  await result.waitForFunction(() => window.__captureSpeechChunks === 1);
+  assert.equal(await desktop.evaluate(() => globalThis.__captureSpeech.completed), false);
+  await desktop.evaluate(() => globalThis.__captureSpeech.complete());
+  await result.waitForFunction(() => document.querySelector('button[aria-label="播放译文"]')?.getAttribute('aria-pressed') === 'false');
+  assert.equal(await result.evaluate(() => window.__captureSpeechChunks), 2);
   await assert.rejects(result.evaluate(() => window.capture.translate('x'.repeat(5001), 'auto', 'auto')), /5,000/);
   // Late translation must never overwrite a newer edit after cancellation.
   await desktop.evaluate(() => {

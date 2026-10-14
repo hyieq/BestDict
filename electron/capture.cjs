@@ -36,8 +36,12 @@ class CaptureService {
       copy: (_event, text) => { if (typeof text !== 'string' || text.length > 20000) throw new Error('复制内容过长。'); clipboard.writeText(text); },
       pin: (_event, value) => { if (typeof value !== 'boolean') throw new Error('Invalid pin'); this.result.setAlwaysOnTop(value); },
       open: (_event, text, settings) => { this.validateText(text); this.openMain(text, settings === true ? 'engines' : false); this.result?.destroy(); },
-      speech: (_event, text, language) => { this.validateText(text); return this.speak(text, language); },
-      'stop-speech': () => this.stopSpeech(),
+      speech: (event, text, language, requestId) => {
+        this.validateText(text);
+        this.speechSender = event.sender;
+        return this.speak(text, language, requestId, event.sender);
+      },
+      'stop-speech': (event, requestId) => this.stopSpeech(requestId, event.sender),
     })) ipcMain.handle(`capture:${channel}`, (event, ...args) => {
       const overlay = this.overlays.has(event.sender.id);
       const result = this.result && !this.result.isDestroyed() && event.sender === this.result.webContents;
@@ -58,6 +62,7 @@ class CaptureService {
     win.setMenu(null);
     if (overlay) win.setAlwaysOnTop(true, 'screen-saver');
     else if (!nativeTheme.prefersReducedTransparency) { try { win.setBackgroundMaterial('acrylic'); } catch {} }
+    if (!overlay) for (const event of ['show', 'hide', 'minimize', 'restore', 'focus']) win.on(event, () => this.onActivity?.());
     win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
     win.webContents.on('will-navigate', event => event.preventDefault());
     return win;
@@ -144,6 +149,7 @@ class CaptureService {
       if (this.result !== resultWindow) return;
       if (!this.capturing) this.cancelWork();
       this.result = null; this.state = {};
+      this.onActivity?.();
     });
     const generation = ++this.generation;
     await this.load(this.result);
@@ -174,7 +180,7 @@ class CaptureService {
     if (this.translating) this.cancelTranslation();
     this.translating = false;
     if (this.state.phase === 'recognizing') this.publish({ phase: 'ready', error: '识别已取消，请重新截图。' });
-    this.stopSpeech();
+    this.stopSpeech(undefined, this.speechSender);
   }
   stop() { this.restore = null; this.cancelCapture(); this.cancelWork(); this.result?.destroy(); this.ocr.stop(); }
 }

@@ -6,6 +6,7 @@ const { pathToFileURL } = require('node:url');
 const { WorkerClient } = require('./worker.cjs');
 const { ResourceManager } = require('./resources.cjs');
 const { SpeechService } = require('./speech.cjs');
+const { SpeechSessions } = require('./speech-stream.cjs');
 const { defaultSpeech, validateSpeech } = require('./speech-options.cjs');
 const { defaultStyles, validateStyles, translationOptions } = require('./ai-options.cjs');
 const { HyTranslator } = require('./hy.cjs');
@@ -19,6 +20,7 @@ protocol.registerSchemesAsPrivileged([{ scheme: 'bestdict', privileges: { standa
 const testing = process.env.BESTDICT_TEST === '1';
 if (testing) app.setPath('userData', path.join(app.getPath('temp'), `bestdict-test-${process.pid}`));
 let window, tray, trayMenu, dictionary, translator, resources, hy, speech;
+let speechSessions;
 let quitting = false;
 let settings;
 let shortcutError = '';
@@ -75,6 +77,21 @@ function loadSettings() {
 
 function nativeText(message) { return settings.locale === 'en' ? english[message] || message : message; }
 
+function updateSpeechStandby() {
+  if (quitting || !speech || !window || window.isDestroyed()) return;
+  // Background preparation never blocks opening the window. Playback reports errors if needed.
+  const captureVisible = capture?.result && !capture.result.isDestroyed() && capture.result.isVisible() && !capture.result.isMinimized();
+  void speech.setActive((window.isVisible() && !window.isMinimized()) || !!captureVisible, settings.speech).catch(() => {});
+}
+
+async function cancelSpeech() { await speech.cancel(); updateSpeechStandby(); }
+
+function stopSpeechPlayers(except) {
+  for (const target of [window, capture?.result]) {
+    if (target && !target.isDestroyed() && target.webContents !== except) target.webContents.send('speech:stop');
+  }
+}
+
 function publicSettings() {
   return { ...settings, shortcutError, miniShortcutError, captureShortcutError, captureAvailable: process.platform === 'win32', startupAvailable: app.isPackaged && ['win32', 'darwin'].includes(process.platform), traySettingsAvailable: process.platform === 'win32' };
 }
@@ -95,7 +112,7 @@ function updateTray() {
 function hideToTray() {
   if (!window || !tray || tray.isDestroyed()) return;
   rememberBounds();
-  speech?.cancel();
+  speechSessions?.cancel(undefined, window.webContents);
   window.webContents.send('speech:stop');
   window.hide();
   if (process.platform === 'win32' && !settings.trayHintSeen) {
@@ -341,7 +358,7 @@ function setupIPC() {
     }
     if (next.translationEngine !== settings.translationEngine) translator.stop();
     saveSettings(next);
-    if ('speech' in changes) { speech.cancel(); window.webContents.send('speech:stop'); }
+    if ('speech' in changes) { speechSessions.cancel(); stopSpeechPlayers(); updateSpeechStandby(); }
     if ('theme' in changes) {
       nativeTheme.themeSource = settings.theme;
       updateWindowAppearance();
@@ -366,19 +383,24 @@ function setupIPC() {
   handle('updates:open', target => updates.open(target));
   handle('speech:cache-status', () => speech.cacheStatus());
   handle('speech:clear-cache', () => speech.clearCache());
-  handle('speech:synthesize', request => speech.synthesize(request?.text, request?.language, settings.speech));
+  handle('speech:synthesize', request => speechSessions.start(window.webContents, request?.requestId, options => speech.synthesize(request?.text, request?.language, settings.speech, options)));
   handle('speech:preview', request => {
     const samples = { zh: '你好，欢迎使用词典。这是当前音色和语速的试听。', en: 'Hello, welcome to BestDict. This is a preview of your selected voice and speed.' };
     if (!Object.hasOwn(samples, request?.language)) throw new Error('试听语言无效。');
-    return speech.synthesize(samples[request.language], request.language, validateSpeech(request.settings));
+    return speechSessions.start(window.webContents, request.requestId, options => speech.synthesize(samples[request.language], request.language, validateSpeech(request.settings), options));
   });
-  handle('speech:cancel', () => speech.cancel());
+  handle('speech:cancel', requestId => speechSessions.cancel(requestId, window.webContents));
   handle('resources:list', () => ({ dictionaries: resources.list(), argos: resources.argosStatus(), hy: resources.hyStatus(), kokoro: resources.kokoroStatus(), progress: resources.latestProgress }));
   async function installResource(id, source) {
     if (id === 'hy-mt2') hy.stop();
     if (id === 'argos') translator.stop();
-    if (id === 'kokoro') { await speech.cancel(); window.webContents.send('speech:stop'); }
-    const result = await resources.install(id, source);
+    if (id === 'kokoro') {
+      if (speech.suspended) throw new Error('已有资源正在安装，请等待完成或取消。');
+      await speech.suspend(); speechSessions.current = null; stopSpeechPlayers();
+    }
+    let result;
+    try { result = await resources.install(id, source); }
+    finally { if (id === 'kokoro') { speech.suspended = false; updateSpeechStandby(); } }
     if (id === 'argos' && result && resources.argosStatus().ready && !settings.argosConfigured) {
       saveSettings({ ...settings, translationEngine: 'argos', argosConfigured: true });
     }
@@ -430,6 +452,7 @@ else {
       script: path.join(root, 'backend', 'worker.py'), progress: data => window?.webContents.send('resources:progress', data) });
     translator = new WorkerClient(python, path.join(root, 'backend', 'worker.py'), resources.argosRoot(), 'translation');
     speech = new SpeechService({ python, backend: path.join(root, 'backend'), resources, cacheDirectory: path.join(app.getPath('userData'), 'speech-cache') });
+    speechSessions = new SpeechSessions({ cancel: cancelSpeech, notify: stopSpeechPlayers });
     // Migrate the old global HY selection to the independent manual AI feature.
     if (settings.translationEngine === 'hy') settings.translationEngine = resources.argosStatus().ready ? 'argos' : 'none';
     if (!['none', 'argos'].includes(settings.translationEngine) ||
@@ -457,6 +480,7 @@ else {
     window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
     window.webContents.on('will-navigate', event => event.preventDefault());
     window.on('close', event => { if (!quitting) { event.preventDefault(); hideToTray(); } });
+    for (const event of ['show', 'hide', 'minimize', 'restore', 'focus']) window.on(event, updateSpeechStandby);
     window.on('blur', () => { if (miniMode && !miniPinned && settings.miniHideOnBlur && !switchingMode && !capture?.capturing) hideToTray(); });
     let boundsTimer;
     for (const event of ['resize', 'move']) window.on(event, () => { clearTimeout(boundsTimer); boundsTimer = setTimeout(rememberBounds, 500); });
@@ -468,8 +492,9 @@ else {
       engines: () => ({ hy: resources.hyStatus().ready, argos: settings.translationEngine === 'argos' && resources.argosStatus().ready }),
       hideMain: () => { const visible = window.isVisible(); const mini = miniMode; window.hide(); return () => { if (visible) showMode(mini); }; },
       openMain: (text, openSettings) => { reveal(); window.webContents.send('capture:open-main', { text, settings: !!openSettings, tab: openSettings || undefined }); },
-      speak: (text, language) => speech.synthesize(text, language, settings.speech),
-      stopSpeech: () => speech.cancel(),
+      speak: (text, language, requestId, sender) => speechSessions.start(sender, requestId, options => speech.synthesize(text, language, settings.speech, options)),
+      stopSpeech: (requestId, sender) => sender ? speechSessions.cancel(requestId, sender) : Promise.resolve(),
+      onActivity: updateSpeechStandby,
       cancelTranslation: () => { captureTranslator.stop(); captureHy.cancel(); },
       runTranslation: async (text, direction, engine) => {
         if (engine === 'hy' || (engine === 'auto' && resources.hyStatus().ready)) return captureHy.translate(text, direction, 'en');

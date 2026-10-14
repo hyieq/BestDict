@@ -33,7 +33,7 @@ test('a cancelled synthesis cannot continue after asynchronous voice discovery',
 test('automatic routing uses Kokoro for Chinese/English and system speech for other languages', async () => {
   const s = service(true);
   const requests = [];
-  s.worker.request = async (method, options) => { requests.push(options); return { audio: 'test', engine: 'kokoro' }; };
+  s.worker.request = async (method, options) => { if (method === 'prepare') return { ready: true }; requests.push(options); return { audio: 'test', engine: 'kokoro' }; };
   assert.equal((await s.synthesize('你好', 'zh', defaultSpeech)).engine, 'kokoro');
   assert.equal(requests[0].voice, 3);
   s.voices = async () => [];
@@ -86,5 +86,14 @@ test('real Kokoro model produces English/Chinese audio and responds to speed', {
       samples.push(audio.length);
     }
     assert.ok(samples[1] < samples[0] * .9, 'Faster voice produces shorter audio');
+    const british = { ...defaultSpeech, kokoroVoices: { en: 2, zh: 58 } };
+    await s.setActive(true, british);
+    const prepared = s.prepared;
+    for (const [language, text] of [['en', 'hello'], ['zh', '你好']]) {
+      const result = await s.synthesize(text, language, british);
+      assert.ok(Buffer.from(result.audio, 'base64').subarray(44).some(byte => byte !== 0));
+      assert.equal(s.prepared, prepared, 'British and Chinese synthesis share the prepared model');
+      assert.equal(s.worker.process, prepared.child);
+    }
   } finally { s.stop(); }
 });

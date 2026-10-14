@@ -28,9 +28,14 @@ contextBridge.exposeInMainWorld('bestdict', {
   getSpeechCatalog: () => ipcRenderer.invoke('speech:catalog'),
   getSpeechCache: () => ipcRenderer.invoke('speech:cache-status'),
   clearSpeechCache: () => ipcRenderer.invoke('speech:clear-cache'),
-  synthesizeSpeech: (text, language) => ipcRenderer.invoke('speech:synthesize', { text, language }),
-  previewSpeech: (language, settings) => ipcRenderer.invoke('speech:preview', { language, settings }),
-  cancelSpeech: () => ipcRenderer.invoke('speech:cancel'),
+  synthesizeSpeech: (text, language, requestId) => ipcRenderer.invoke('speech:synthesize', { text, language, requestId }),
+  previewSpeech: (language, settings, requestId) => ipcRenderer.invoke('speech:preview', { language, settings, requestId }),
+  onSpeechChunk: callback => {
+    const listener = (_event, data) => callback(data);
+    ipcRenderer.on('speech:chunk', listener);
+    return () => ipcRenderer.removeListener('speech:chunk', listener);
+  },
+  cancelSpeech: requestId => ipcRenderer.invoke('speech:cancel', requestId),
   onStopSpeech: callback => {
     const listener = () => callback();
     ipcRenderer.on('speech:stop', listener);

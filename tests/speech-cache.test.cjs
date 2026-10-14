@@ -28,6 +28,8 @@ function service(directory, model = { ready: true, sha256: 'model-one' }) {
   const speech = new SpeechService({ python: 'unused', backend: __dirname, platform: 'win32', cacheDirectory: directory,
     resources: { kokoroRoot: () => __dirname, kokoroStatus: () => model } });
   speech.worker.request = async () => ({ audio: wav(), engine: 'kokoro' });
+  // These tests isolate the audio cache; model lifecycle is exercised by speech-standby tests.
+  speech.prepare = async () => {};
   return speech;
 }
 
@@ -49,6 +51,17 @@ test('replays and process restarts reuse Kokoro audio without invoking synthesis
   assert.ok(files.every(file => /^[a-f0-9]{64}\.wav$/.test(file)), 'File names contain no query text');
 });
 
+test('the streaming upgrade preserves legacy single-word audio caches in both languages', async t => {
+  const speech = service(await folder(t));
+  t.after(() => speech.stop());
+  for (const [text, language, voice] of [['hello', 'en', 0], ['你好', 'zh', 3]]) {
+    const legacy = speech.cache.key({ engine: 'kokoro', model: 'model-one', text, language, voice, rate: 1 });
+    await speech.cache.put(legacy, wav());
+  }
+  speech.worker.request = () => { throw new Error('Existing word audio must not synthesize again'); };
+  for (const [text, language] of [['hello', 'en'], ['你好', 'zh']]) assert.equal((await speech.synthesize(text, language, defaultSpeech)).cached, true);
+});
+
 test('text, language, voice, speed, model and resolved engine separate cached audio', async t => {
   const model = { ready: true, sha256: 'model-one' };
   const speech = service(await folder(t), model);
@@ -63,6 +76,12 @@ test('text, language, voice, speed, model and resolved engine separate cached au
   model.sha256 = 'model-two';
   await speech.synthesize('hello', 'en', defaultSpeech);
   assert.equal(requests, 6);
+  const mixed = '你好 hello';
+  await speech.synthesize(mixed, 'zh', defaultSpeech);
+  const british = { ...defaultSpeech, kokoroVoices: { en: 2, zh: 3 } };
+  assert.equal((await speech.synthesize(mixed, 'zh', british)).cached, false, 'Chinese mixed text respects the selected English accent');
+  assert.equal((await speech.synthesize(mixed, 'zh', defaultSpeech)).cached, true);
+  assert.equal(requests, 8);
   speech.voices = async () => [{ id: 'system-one', language: 'en-US' }, { id: 'system-two', language: 'en-GB' }];
   let systemRequests = 0;
   speech.windows = async () => { systemRequests++; return wav(); };

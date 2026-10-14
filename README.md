@@ -4,7 +4,7 @@
   <p><strong>专注本地AI查词翻译<br/>纯净、无广告、无订阅</strong></p>
   <p>A quiet, offline-first desktop dictionary & translator.</p>
   <p>
-    <img src="https://img.shields.io/badge/version-0.4.17-0067b8" alt="Version 0.4.17" />
+    <img src="https://img.shields.io/badge/version-0.4.18-0067b8" alt="Version 0.4.18" />
     <img src="https://img.shields.io/badge/platform-Windows_·_macOS-0078d4" alt="Windows and macOS" />
     <img src="https://img.shields.io/badge/Electron-React_·_TypeScript-47848f" alt="Electron, React and TypeScript" />
     <a href="LICENSE"><img src="https://img.shields.io/badge/code_license-MIT-3d8558" alt="Code license: MIT" /></a>
@@ -162,10 +162,14 @@ Remove-Item Env:BESTDICT_RELEASE_DIR
 设置中的“试听中文 / 试听英文”使用当前未保存的音色和语速；修改参数或关闭设置会停止试听，试听不会保存设置。
 
 默认自动模式先使用系统已安装音色；安装 Kokoro INT8 中英语音包后，中英文优先使用 Kokoro。
+选用 Kokoro 时，显示主界面、迷你界面或截图结果会在后台预加载模型，连续发音复用已加载模型。
+长句和段落会按自然短语分段，首段生成后开始播放，同时继续生成后续内容；推理较慢时自动增加缓冲。
+停止或切换内容会清空待播音频，只有完整生成的音频才保存到缓存。
+隐藏到托盘后空闲 2 分钟释放模型，快速唤醒继续复用；退出或切换到系统语音时立即释放。
 语音包约 147 MB，独立按需下载，也可复制官方链接后导入 `.tar.bz2` 文件，导入时验证 SHA-256。
 其他语言使用对应的系统音色；没有匹配音色时会提示安装，不会用错误语言朗读。
 所有合成均在本机进行。Windows 使用 System.Speech，macOS 使用系统 `say`；Kokoro 共用模型、分别安装平台运行库。
-macOS 适配目前尚未经过真机测试，现有发布流程仍为 Windows。
+macOS 的实际声音设备体验仍需真机验收。
 
 开发环境运行 `.venv/Scripts/python.exe scripts/setup_tts_runtime.py` 准备语音运行库；正常资源初始化也会执行这一步。
 `npm run test:speech` 验证桌面播放控制；`python -m unittest discover -s tests -p test_speech_installer.py` 验证语音包安装。
