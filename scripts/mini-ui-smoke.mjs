@@ -134,10 +134,17 @@ try {
   await capture('zoom.png');
   assert.deepEqual(errors, []);
 } finally {
-  // Let the debugger evaluation return before Cocoa starts closing the native
-  // mini window. Quit is still graceful, including the app's worker cleanup.
-  const closed = desktop.waitForEvent('close', { timeout: 15000 });
-  await desktop.evaluate(({ app }) => { setImmediate(() => app.quit()); });
-  await closed;
+  // Playwright must disconnect its Node inspector before Cocoa completes quit.
+  // Defer the native call, then use Playwright's close to detach both transports.
+  await desktop.evaluate(({ app }) => {
+    const nativeQuit = app.quit.bind(app);
+    app.quit = () => { setImmediate(nativeQuit); };
+  });
+  let timer;
+  try {
+    await Promise.race([desktop.close(), new Promise((_, reject) => {
+      timer = setTimeout(() => reject(new Error('Graceful Electron shutdown timed out')), 15000);
+    })]);
+  } finally { clearTimeout(timer); }
 }
 console.log('Mini UI passed: real lookup, copy, shared query, bounds, pin, blur, shortcuts, conflict, English, dark, zoom and graceful quit.');
