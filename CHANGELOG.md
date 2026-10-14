@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.15
+
+- 新增 macOS Apple Silicon 测试包的 GitHub Actions 构建，输出 DMG、ZIP 与 SHA-256 校验文件。
+- 为 macOS 准备可随包迁移的 Python、Argos / Kokoro 依赖与 llama.cpp 运行时，模型权重保持按需下载。
+- Mac 测试包使用临时签名，尚未经过 Apple Developer ID 签名和公证；截图翻译仍仅支持 Windows。
+
 ## 0.4.14
 
 - 新增 Windows 截图翻译，Alt + Shift + S 框选屏幕文字，支持多显示器选区与按图像像素映射缩放。

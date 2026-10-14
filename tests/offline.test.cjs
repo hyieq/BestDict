@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const path = require('node:path');
 const { WorkerClient } = require('../electron/worker.cjs');
 const root = path.join(__dirname, '..');
-const python = process.env.BESTDICT_PYTHON || path.join(root, 'runtime/python/python.exe');
+const python = process.env.BESTDICT_PYTHON || path.join(root, process.platform === 'win32' ? 'runtime/python/python.exe' : 'runtime/python/bin/python3');
 const make = kind => new WorkerClient(python, path.join(root, 'backend/worker.py'), path.join(root,
   kind === 'translation' ? '.cache/validation-library/argos' : 'resources'), kind);
 const realModels = process.env.BESTDICT_REAL_ASSETS === '1';

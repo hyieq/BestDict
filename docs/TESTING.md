@@ -1,5 +1,34 @@
 # Testing
 
+## macOS Apple Silicon 预览包
+
+`.github/workflows/macos.yml` 在 Apple Silicon `macos-15` 上运行，可手动触发，
+也会在 main / codex/macos-* 分支代码推送和 PR 时运行。流程准备独立的
+Python 3.12.10、ctranslate2、sentencepiece、sherpa-onnx 和固定版本 llama.cpp，
+执行资源测试并生成临时签名的 DMG / ZIP；不创建 tag，也不发布 GitHub Release。
+
+在 Mac 上本地复现（需要 Node 22、Python 3.12、uv）：
+
+```sh
+npm ci
+python3 scripts/setup_assets.py
+python3 scripts/setup_hy_runtime.py
+python3 scripts/copy_licenses.py
+npm test
+npm run package
+python3 scripts/verify_macos_bundle.py release/mac-arm64/BestDict.app
+BESTDICT_TEST_EXE="$PWD/release/mac-arm64/BestDict.app/Contents/MacOS/BestDict" npm run test:desktop
+```
+
+CI 将 `.app` 复制到包含空格的独立目录后，校验签名、包内符号链接、模型权重排除、
+Python 原生模块导入、77 万词条查询及 llama-server 启动，再执行打包后桌面、
+查询模式、AI 样式/菜单、发音缓存和迷你模式交互测试。测试使用 BESTDICT_TEST 隔离配置。
+自动测试不下载真实翻译/语音模型，不能代替真实推理、Gatekeeper 下载隔离、
+登录自启动、系统快捷键权限和硬件上的体验验收。Mac 不运行 Windows 截图测试。
+
+成功时上传安装包、SHA256SUMS.txt，失败时仍上传已有测试证据。构建产物保留 30 天。
+当前仅为 Apple Silicon 临时签名测试包；正式公开分发前需接入 Developer ID 签名和公证。
+
 ## 截图翻译
 
 准备运行时：`.venv/Scripts/python.exe scripts/setup_ocr_runtime.py`。构建后运行

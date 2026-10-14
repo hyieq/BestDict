@@ -288,7 +288,7 @@ export default function App() {
         <div className="wordmark">Best<span>Dict</span></div>
         <div className="titlebar-actions"><span className="shortcut-pill"><Keyboard size={13} />{prettyShortcut(settings?.shortcut || 'Control+Shift+D')}</span>
           <button className="chrome-button" aria-label={t('迷你模式')} title={t('迷你模式') + ' · ' + prettyShortcut(settings?.miniShortcut || 'Alt+Shift+D')} onClick={() => switchMini(true)}><PanelTop size={18} /></button>
-          <button className="chrome-button" aria-label={t('截图翻译')} title={t('截图翻译') + ' · ' + prettyShortcut(settings?.captureShortcut || 'Alt+Shift+S')} onClick={() => void api.startCapture().catch(e => setError(errorText(e)))}><ScanLine size={18} /></button>
+          {settings?.captureAvailable && <button className="chrome-button" aria-label={t('截图翻译')} title={t('截图翻译') + ' · ' + prettyShortcut(settings?.captureShortcut || 'Alt+Shift+S')} onClick={() => void api.startCapture().catch(e => setError(errorText(e)))}><ScanLine size={18} /></button>}
           <button className="chrome-button github-link" title={t("打开 GitHub 项目")} aria-label={t("打开 GitHub 项目")} onClick={() => void api.openSource('github').catch(e => setError(errorText(e)))}><Github size={19} aria-hidden="true" /><ArrowUpRight size={10} className="external-arrow" aria-hidden="true" /></button>
           <button className="chrome-button" aria-label={t("最小化")} onClick={() => api?.minimize()}><Minus size={17} /></button>
           <button className="chrome-button close" aria-label={t("隐藏窗口")} onClick={() => api?.hide()}><X size={17} /></button>

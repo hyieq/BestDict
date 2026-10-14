@@ -14,6 +14,12 @@ Keep the public README focused on usage; retain publishing instructions in this 
 
 ## Release procedure
 
+macOS previews use `.github/workflows/macos.yml` on native Apple Silicon runners.
+It uploads ad-hoc signed DMG/ZIP artifacts and checksums, without creating a release.
+Use a `codex/macos-*` branch or workflow_dispatch to exercise this workflow. Preserve
+Windows release behavior. Do not describe preview artifacts as notarized or validated
+on a physical Mac; the preview currently excludes Windows-only screenshot translation.
+
 Publish only when the user asks to release, or asks to push and build a new version.
 Use a new version for changed application behavior. Synchronize `package.json`, both root
 versions in `package-lock.json`, the README badge, and `CHANGELOG.md`.

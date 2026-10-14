@@ -73,7 +73,7 @@ function loadSettings() {
 function nativeText(message) { return settings.locale === 'en' ? english[message] || message : message; }
 
 function publicSettings() {
-  return { ...settings, shortcutError, miniShortcutError, captureShortcutError, startupAvailable: app.isPackaged && ['win32', 'darwin'].includes(process.platform), traySettingsAvailable: process.platform === 'win32' };
+  return { ...settings, shortcutError, miniShortcutError, captureShortcutError, captureAvailable: process.platform === 'win32', startupAvailable: app.isPackaged && ['win32', 'darwin'].includes(process.platform), traySettingsAvailable: process.platform === 'win32' };
 }
 
 function updateTray() {
@@ -306,7 +306,7 @@ function setupIPC() {
       // Reserve new bindings before releasing either old binding, with rollback on conflict.
       const acquired = [];
       try {
-        const bindings = [['shortcut', toggle], ['miniShortcut', toggleMini], ['captureShortcut', startCapture]];
+        const bindings = [['shortcut', toggle], ['miniShortcut', toggleMini], ...(process.platform === 'win32' ? [['captureShortcut', startCapture]] : [])];
         for (const [key, callback] of bindings) {
           const value = changes[key] ?? settings[key];
           if (typeof value !== 'string' || !/^(?:(?:Control|Command|Alt|Shift|Super)\+){1,3}(?:[A-Z0-9]|F(?:[1-9]|1[0-9]|2[0-4]))$/.test(value)) throw new Error('请使用例如 Control+Shift+D 的快捷键格式。');

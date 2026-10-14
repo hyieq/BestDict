@@ -1,0 +1,84 @@
+name: macOS Preview
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, 'codex/macos-*']
+    paths-ignore: ['docs/**', '**/*.md']
+  pull_request:
+    paths-ignore: ['docs/**', '**/*.md']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: macos-preview-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apple-silicon:
+    runs-on: macos-15
+    timeout-minutes: 60
+    env:
+      PYTHONUTF8: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: false
+      - name: Install dependencies
+        run: npm ci --registry=https://registry.npmjs.org
+      - name: Prepare portable runtimes and offline dictionary
+        run: |
+          python scripts/setup_assets.py
+          python scripts/setup_hy_runtime.py
+          python scripts/copy_licenses.py
+          echo "BESTDICT_PYTHON=$PWD/runtime/python/bin/python3" >> "$GITHUB_ENV"
+      - name: Test resources and speech installer
+        run: |
+          npm test
+          python -m unittest discover -s tests -p test_speech_installer.py
+      - name: Build ad-hoc signed DMG and ZIP
+        run: npm run package
+      - name: Verify relocated application and native dependencies
+        run: |
+          mkdir -p "$RUNNER_TEMP/BestDict relocation"
+          ditto release/mac-arm64/BestDict.app "$RUNNER_TEMP/BestDict relocation/BestDict.app"
+          python scripts/verify_macos_bundle.py "$RUNNER_TEMP/BestDict relocation/BestDict.app"
+          echo "BESTDICT_TEST_EXE=$RUNNER_TEMP/BestDict relocation/BestDict.app/Contents/MacOS/BestDict" >> "$GITHUB_ENV"
+      - name: Test packaged desktop
+        run: |
+          npm run test:desktop
+          npm run test:query-mode
+          npm run test:ai-styles
+          npm run test:ai-menu
+          npm run test:speech
+          npm run test:mini
+      - name: Checksums
+        run: |
+          cd release
+          shasum -a 256 BestDict-*-macOS-arm64.dmg BestDict-*-macOS-arm64.zip > SHA256SUMS.txt
+      - name: Save preview installers
+        uses: actions/upload-artifact@v4
+        with:
+          name: BestDict-macOS-arm64-${{ github.run_number }}
+          path: |
+            release/BestDict-*-macOS-arm64.dmg
+            release/BestDict-*-macOS-arm64.zip
+            release/SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 30
+      - name: Save test evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: macOS-test-results-${{ github.run_number }}
+          path: test-results/
+          if-no-files-found: ignore

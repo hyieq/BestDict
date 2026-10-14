@@ -12,7 +12,7 @@ export interface Settings {
   miniShortcut: string; miniShortcutError: string; miniHideOnBlur: boolean; miniRememberPosition: boolean;
   speech: SpeechSettings;
   aiStyles: AIStyle[]; aiStyleId: string;
-  locale: 'zh-CN' | 'en'; traySettingsAvailable: boolean;
+  locale: 'zh-CN' | 'en'; traySettingsAvailable: boolean; captureAvailable: boolean;
   startup: boolean; shortcut: string; theme: 'system' | 'light' | 'dark';
   shortcutError: string; startupAvailable: boolean;
   dictionaryId: string; autoDictionary: boolean; translationEngine: 'none' | 'argos';

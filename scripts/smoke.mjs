@@ -19,6 +19,9 @@ try {
   page.on('pageerror', error => errors.push(error.message));
   page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
   await page.getByText('离线资源已就绪').waitFor();
+  const captureAvailable = process.platform === 'win32';
+  assert.equal(await page.evaluate(() => window.bestdict.getSettings().then(s => s.captureAvailable)), captureAvailable);
+  assert.equal(await page.getByRole('button', { name: '截图翻译', exact: true }).count(), captureAvailable ? 1 : 0);
   assert.equal(await page.evaluate(() => window.bestdict.getSettings().then(s => s.translationEngine)), 'none');
   assert.equal(await page.evaluate(() => window.bestdict.getSettings().then(s => s.locale)), 'zh-CN');
   await assert.rejects(page.evaluate(() => window.bestdict.setSettings({ locale: 'invalid' })), /界面语言无效/);

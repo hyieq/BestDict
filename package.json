@@ -1,6 +1,6 @@
 {
   "name": "bestdict",
-  "version": "0.4.14",
+  "version": "0.4.15",
   "private": true,
   "description": "A quiet, offline-first bilingual desktop dictionary",
   "author": "BestDict",
@@ -111,6 +111,29 @@
       "shortcutName": "BestDict",
       "include": "scripts/installer.nsh"
     },
-    "artifactName": "BestDict-${version}-${arch}-Setup.${ext}"
+    "artifactName": "BestDict-${version}-${arch}-Setup.${ext}",
+    "afterPack": "scripts/sign-macos-runtime.cjs",
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "arm64"
+          ]
+        }
+      ],
+      "icon": "resources/icon.png",
+      "category": "public.app-category.reference",
+      "identity": "-",
+      "hardenedRuntime": false,
+      "notarize": false,
+      "artifactName": "BestDict-${version}-macOS-${arch}.${ext}"
+    }
   }
 }

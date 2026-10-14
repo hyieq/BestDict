@@ -6,7 +6,7 @@ const { SpeechService } = require('../electron/speech.cjs');
 const { defaultSpeech, validateSpeech, selectSystemVoice } = require('../electron/speech-options.cjs');
 const root = path.join(__dirname, '..');
 function service(ready = false, platform) {
-  return new SpeechService({ python: path.join(root, 'runtime/python/python.exe'), backend: path.join(root, 'backend'),
+  return new SpeechService({ python: path.join(root, process.platform === 'win32' ? 'runtime/python/python.exe' : 'runtime/python/bin/python3'), backend: path.join(root, 'backend'),
     resources: { kokoroRoot: () => path.join(root, '.cache/speech-validation/kokoro/model'), kokoroStatus: () => ({ ready }) }, platform });
 }
 test('speech settings reject corrupt preferences and never select an unrelated language', () => {

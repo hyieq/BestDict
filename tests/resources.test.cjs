@@ -12,7 +12,7 @@ const { WorkerClient } = require('../electron/worker.cjs');
 
 const root = path.join(__dirname, '..');
 const temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'bestdict-resource-test-'));
-const python = process.env.BESTDICT_PYTHON || path.join(root, 'runtime/python/python.exe');
+const python = process.env.BESTDICT_PYTHON || path.join(root, process.platform === 'win32' ? 'runtime/python/python.exe' : 'runtime/python/bin/python3');
 const script = path.join(root, 'backend/worker.py');
 const events = [];
 const manager = new ResourceManager({ assets: path.join(root, 'resources'), library: temporary, python, script, progress: event => events.push(event) });

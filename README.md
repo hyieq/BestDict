@@ -4,7 +4,7 @@
   <p><strong>专注本地AI查词翻译<br/>纯净、无广告、无订阅</strong></p>
   <p>A quiet, offline-first desktop dictionary & translator.</p>
   <p>
-    <img src="https://img.shields.io/badge/version-0.4.14-0067b8" alt="Version 0.4.14" />
+    <img src="https://img.shields.io/badge/version-0.4.15-0067b8" alt="Version 0.4.15" />
     <img src="https://img.shields.io/badge/platform-Windows_x64-0078d4" alt="Windows x64" />
     <img src="https://img.shields.io/badge/Electron-React_·_TypeScript-47848f" alt="Electron, React and TypeScript" />
     <a href="LICENSE"><img src="https://img.shields.io/badge/code_license-MIT-3d8558" alt="Code license: MIT" /></a>
@@ -48,6 +48,10 @@ BestDict 是一款 Windows x64 离线词典与翻译软件。按下 `Ctrl + Shif
 3. 需要整句翻译时，在 **设置 → 翻译引擎** 下载或导入模型。
 
 安装包包含内置词库和必要运行时，无需另装 Python。翻译模型按需下载，启动时不会自动下载。
+
+macOS Apple Silicon（M 系列）测试包通过 [macOS Preview 构建](https://github.com/hyieq/BestDict/actions/workflows/macos.yml) 提供：登录 GitHub，打开成功的构建，在 Artifacts 下载 `BestDict-macOS-arm64-…`，解压后打开 DMG，将 BestDict 拖入「应用程序」。下载内附 ZIP 和 SHA-256 校验文件，构建产物保留 30 天。Intel Mac 暂不支持。
+
+Mac 测试包尚未经过 Apple Developer ID 签名和公证，首次打开可能需要到「系统设置 → 隐私与安全性」允许打开。截图翻译目前仅支持 Windows；Mac 的系统权限、快捷键及实际发音体验仍需真机验收。
 
 | 引擎 | 下载大小 | 用途 |
 | --- | --- | --- |

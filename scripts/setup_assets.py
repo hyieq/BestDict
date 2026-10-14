@@ -1,4 +1,4 @@
-"""Fetch public assets and build a portable Windows CPU translation runtime.
+"""Fetch public assets and build a portable Windows or macOS translation runtime.
 
 Run with the project's .venv Python. No application data is sent anywhere.
 """
@@ -10,6 +10,7 @@ import re
 import shutil
 import sqlite3
 import subprocess
+import sys
 import time
 import urllib.request
 import zipfile
@@ -112,11 +113,18 @@ def main():
     jobs = {
         'ecdict.csv': 'https://raw.githubusercontent.com/skywind3000/ECDICT/master/ecdict.csv',
         'ecdict-LICENSE': 'https://raw.githubusercontent.com/skywind3000/ECDICT/master/LICENSE',
-        'python-3.12.10-embed-amd64.zip': 'https://www.python.org/ftp/python/3.12.10/python-3.12.10-embed-amd64.zip',
     }
+    if sys.platform == 'win32':
+        jobs['python-3.12.10-embed-amd64.zip'] = 'https://www.python.org/ftp/python/3.12.10/python-3.12.10-embed-amd64.zip'
+    elif sys.platform != 'darwin':
+        raise RuntimeError('Runtime preparation supports Windows and macOS only.')
     with concurrent.futures.ThreadPoolExecutor(max_workers=5) as pool:
         assets = dict(zip(jobs, pool.map(lambda item: download(*item), jobs.items())))
-    build_runtime(assets['python-3.12.10-embed-amd64.zip'])
+    if sys.platform == 'win32':
+        build_runtime(assets['python-3.12.10-embed-amd64.zip'])
+    else:
+        from setup_macos_runtime import build_runtime as build_macos_runtime
+        build_macos_runtime()
     shutil.copy2(assets['ecdict-LICENSE'], ASSETS / 'ECDICT-LICENSE.txt')
     build_dictionary(assets['ecdict.csv'])
     manifest = {name: {'url': jobs[name], 'sha256': hashlib.sha256(path.read_bytes()).hexdigest(), 'bytes': path.stat().st_size}

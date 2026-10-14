@@ -11,7 +11,9 @@ for package in ('react', 'react-dom', 'lucide-react'):
     else:
         raise RuntimeError(f'License file missing for {package}')
 print('Renderer licenses preserved.')
-speech_license = root / 'runtime/python/Lib/site-packages/sherpa_onnx-1.13.8.dist-info/licenses/LICENSE'
+import sys
+site_packages = root / ('runtime/python/Lib/site-packages' if sys.platform == 'win32' else 'runtime/python/lib/python3.12/site-packages')
+speech_license = site_packages / 'sherpa_onnx-1.13.8.dist-info/licenses/LICENSE'
 if speech_license.exists():
     shutil.copy2(speech_license, root / 'resources/licenses/sherpa-onnx-LICENSE.txt')
 
