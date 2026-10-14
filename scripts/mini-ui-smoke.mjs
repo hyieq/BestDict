@@ -39,6 +39,10 @@ try {
   assert.match(await desktop.evaluate(({ clipboard }) => clipboard.readText()), /serendipity/);
   await page.getByRole('button', { name: '固定置顶', exact: true }).focus();
   await page.keyboard.press('Enter');
+  await page.waitForFunction(() => window.bestdict.getWindowMode().then(mode => mode.pinned));
+  for (let attempt = 0; attempt < 20 && !await desktop.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].isAlwaysOnTop()); attempt++) {
+    await page.waitForTimeout(50);
+  }
   assert.equal(await desktop.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].isAlwaysOnTop()), true);
   await desktop.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].emit('blur'));
   assert.equal(await desktop.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].isVisible()), true);
@@ -129,5 +133,11 @@ try {
   assert.equal(await page.getByRole('button', { name: 'Full definition' }).evaluate(el => el.getBoundingClientRect().bottom <= innerHeight), true);
   await capture('zoom.png');
   assert.deepEqual(errors, []);
-  console.log('Mini UI passed: real lookup, copy, shared query, bounds, pin, blur, shortcuts, conflict, English, dark, zoom.');
-} finally { await desktop.close(); }
+} finally {
+  // Let the debugger evaluation return before Cocoa starts closing the native
+  // mini window. Quit is still graceful, including the app's worker cleanup.
+  const closed = desktop.waitForEvent('close', { timeout: 15000 });
+  await desktop.evaluate(({ app }) => { setImmediate(() => app.quit()); });
+  await closed;
+}
+console.log('Mini UI passed: real lookup, copy, shared query, bounds, pin, blur, shortcuts, conflict, English, dark, zoom and graceful quit.');
