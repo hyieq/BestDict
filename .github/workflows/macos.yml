@@ -63,7 +63,7 @@ jobs:
           node scripts/ci-command.mjs ai-styles npm run test:ai-styles || failed=1
           node scripts/ci-command.mjs ai-menu npm run test:ai-menu || failed=1
           node scripts/ci-command.mjs speech npm run test:speech || failed=1
-          node scripts/ci-command.mjs mini npm run test:mini || failed=1
+          DEBUG=pw:browser node scripts/ci-command.mjs mini npm run test:mini || failed=1
           exit "$failed"
       - name: Checksums
         run: |

@@ -137,6 +137,8 @@ try {
   // Playwright must disconnect its Node inspector before Cocoa completes quit.
   // Defer the native call, then use Playwright's close to detach both transports.
   await desktop.evaluate(({ app }) => {
+    app.once('before-quit', () => console.log('Mini shutdown: before-quit'));
+    app.once('will-quit', () => console.log('Mini shutdown: will-quit'));
     const nativeQuit = app.quit.bind(app);
     app.quit = () => { setImmediate(nativeQuit); };
   });
