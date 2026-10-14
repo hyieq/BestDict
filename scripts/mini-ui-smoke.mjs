@@ -101,16 +101,16 @@ try {
   await page.locator('.titlebar').waitFor();
 
   // Conflict must leave the original registered shortcut usable.
-  await desktop.evaluate(({ globalShortcut }) => globalShortcut.register('Control+Alt+Shift+F8', () => {}));
+  await desktop.evaluate(({ globalShortcut }) => globalShortcut.register('Control+Alt+Shift+F6', () => {}));
   const rejected = await page.evaluate(async () => {
-    try { await window.bestdict.setSettings({ miniShortcut: 'Control+Alt+Shift+F8' }); return false; } catch { return true; }
+    try { await window.bestdict.setSettings({ miniShortcut: 'Control+Alt+Shift+F6' }); return false; } catch { return true; }
   });
   assert.equal(rejected, true);
   assert.equal(await desktop.evaluate(({ globalShortcut }) => globalShortcut.isRegistered('Control+Alt+Shift+F9')), true);
   assert.equal((await page.evaluate(() => window.bestdict.getSettings())).miniShortcut, 'Control+Alt+Shift+F9');
-  await desktop.evaluate(({ globalShortcut }) => globalShortcut.unregister('Control+Alt+Shift+F8'));
-  await page.evaluate(() => window.bestdict.setSettings({ miniShortcut: 'Alt+Shift+D', miniHideOnBlur: false, theme: 'dark', locale: 'en' }));
-  assert.equal(await desktop.evaluate(({ globalShortcut }) => globalShortcut.isRegistered('Alt+Shift+D')), true);
+  await desktop.evaluate(({ globalShortcut }) => globalShortcut.unregister('Control+Alt+Shift+F6'));
+  await page.evaluate(() => window.bestdict.setSettings({ miniShortcut: 'Control+Alt+Shift+F7', miniHideOnBlur: false, theme: 'dark', locale: 'en' }));
+  assert.equal(await desktop.evaluate(({ globalShortcut }) => globalShortcut.isRegistered('Control+Alt+Shift+F7')), true);
   assert.equal(await desktop.evaluate(({ globalShortcut }) => globalShortcut.isRegistered('Control+Alt+Shift+F9')), false);
   await page.reload();
   await page.locator('html[data-theme=dark]').waitFor();

@@ -14,3 +14,8 @@ print('Renderer licenses preserved.')
 speech_license = root / 'runtime/python/Lib/site-packages/sherpa_onnx-1.13.8.dist-info/licenses/LICENSE'
 if speech_license.exists():
     shutil.copy2(speech_license, root / 'resources/licenses/sherpa-onnx-LICENSE.txt')
+
+ocr_licenses = root / 'runtime/python/Lib/site-packages/rapidocr-3.10.0.dist-info/licenses'
+for filename in ('LICENSE', 'MODEL_LICENSES.md'):
+    if (ocr_licenses / filename).exists():
+        shutil.copy2(ocr_licenses / filename, root / 'resources/licenses' / ('RapidOCR-' + filename))

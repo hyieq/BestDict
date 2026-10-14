@@ -1,6 +1,21 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('bestdict', {
+  startCapture: () => ipcRenderer.invoke('screenshot:start'),
+  getOCR: () => ipcRenderer.invoke('ocr:status'),
+  installOCR: () => ipcRenderer.invoke('ocr:install'),
+  cancelOCRDownload: () => ipcRenderer.invoke('ocr:cancel'),
+  uninstallOCR: () => ipcRenderer.invoke('ocr:uninstall'),
+  onCaptureOpen: callback => {
+    const listener = (_event, data) => callback(data);
+    ipcRenderer.on('capture:open-main', listener);
+    return () => ipcRenderer.removeListener('capture:open-main', listener);
+  },
+  onCaptureError: callback => {
+    const listener = (_event, data) => callback(data);
+    ipcRenderer.on('capture:error', listener);
+    return () => ipcRenderer.removeListener('capture:error', listener);
+  },
   getWindowMode: () => ipcRenderer.invoke('window:mode'),
   setMiniMode: mini => ipcRenderer.invoke('window:set-mode', mini),
   pinMini: pinned => ipcRenderer.invoke('window:pin', pinned),

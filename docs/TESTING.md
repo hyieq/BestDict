@@ -1,5 +1,20 @@
 # Testing
 
+## 截图翻译
+
+准备运行时：`.venv/Scripts/python.exe scripts/setup_ocr_runtime.py`。构建后运行
+`npm.cmd run test:capture`，独立快捷键为 Ctrl+Alt+Shift+F8。
+使用独立配置和模型目录验证缺模型引导、框选、真实 PP-OCRv6 中英文识别、复制、
+原文编辑、自动/手动翻译、置顶、进入主界面、Escape 恢复与模型卸载。
+翻译推理在此交互测试中替换，OCR 不替换。无物理显示器的 CI/服务会话会以实际
+Electron 窗口截图作为屏幕输入，报告中的 nativeCapture 标明是否测试真实桌面捕获。
+结果存放在 test-results/capture，仅保存合成测试内容。物理多屏、混合 DPI、
+显示器断开及 Windows 桌面合成需要可见桌面验收；测试截图不可用作实际 AI 翻译宣传图。
+`node --test tests/capture.test.cjs tests/ocr.test.cjs` 验证像素映射、非法选区及下载校验/取消。
+`python -m unittest discover -s tests -p test_ocr_layout.py` 验证分栏及段落合并。
+设置 `BESTDICT_REAL_CAPTURE=1` 后，截图交互测试会额外使用
+`.cache/validation-library/hy-mt2` 中已有的真实 HY 模型验证翻译并保存截图。
+
 ## 迷你模式
 
 构建后运行 `npm.cmd run test:mini`。使用隔离配置验证真实离线查询、复制释义、

@@ -79,3 +79,11 @@ The model and pronunciation data are NOT bundled or automatically downloaded.
 Installed resources retain all upstream archive files and ATTRIBUTION.txt.
 The archive also contains eSpeak NG pronunciation data, separately licensed:
 https://github.com/espeak-ng/espeak-ng (GPL-3.0-or-later).
+
+RapidOCR 3.10.0 / PP-OCRv6 small (optional OCR models)
+https://github.com/RapidAI/RapidOCR
+https://github.com/PaddlePaddle/PaddleOCR
+Apache-2.0. Code: RapidOCR Authors. Model weights: Baidu / PaddleOCR rights holders.
+See licenses/RapidOCR-LICENSE and licenses/RapidOCR-MODEL_LICENSES.md.
+OCR weights are downloaded only on request and excluded from the installer.
+ONNX Runtime and other native dependencies retain their bundled upstream licenses.

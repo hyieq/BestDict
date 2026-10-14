@@ -8,6 +8,7 @@ export type Mode = 'auto' | 'dictionary' | 'translate';
 export interface AIStyle { id: string; name: string; prompt: string }
 export interface AIOptions { forceRefresh?: boolean; styleName?: string; stylePrompt?: string; polishPrompt?: string; previousText?: string }
 export interface Settings {
+  captureShortcut: string; captureShortcutError: string;
   miniShortcut: string; miniShortcutError: string; miniHideOnBlur: boolean; miniRememberPosition: boolean;
   speech: SpeechSettings;
   aiStyles: AIStyle[]; aiStyleId: string;
@@ -31,6 +32,13 @@ export interface ResourceCatalog {
   progress: ResourceProgress | null;
 }
 export interface DesktopAPI {
+  startCapture(): Promise<void>;
+  getOCR(): Promise<OCRStatus>;
+  installOCR(): Promise<OCRStatus>;
+  cancelOCRDownload(): Promise<void>;
+  uninstallOCR(): Promise<OCRStatus>;
+  onCaptureOpen(callback: (data: { text: string; settings: boolean; tab?: string }) => void): () => void;
+  onCaptureError(callback: (message: string) => void): () => void;
   getWindowMode(): Promise<{ mini: boolean; pinned: boolean }>;
   setMiniMode(mini: boolean): Promise<{ mini: boolean; pinned: boolean }>;
   pinMini(pinned: boolean): Promise<{ mini: boolean; pinned: boolean }>;
@@ -70,3 +78,4 @@ export interface SpeechSettings { engine: 'auto' | 'system' | 'kokoro'; rate: nu
 export interface SpeechVoice { id: string; name: string; language: string }
 export interface SpeechCatalog { system: SpeechVoice[]; kokoro: SpeechVoice[]; systemError: string }
 export interface SpeechCacheStatus { bytes: number; count: number; maxBytes: number; maxEntries: number }
+export interface OCRStatus { ready: boolean; supported: boolean; bytes: number; progress: { received: number; total: number } | null }

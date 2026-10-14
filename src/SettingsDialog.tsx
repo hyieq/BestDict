@@ -4,6 +4,7 @@ import type { ResourceCatalog, ResourceProgress, Settings, Status, SpeechCatalog
 import { createTranslator } from './i18n';
 import { useSpeech } from './useSpeech';
 import SpeechButton from './SpeechButton';
+import OCRSettings from './OCRSettings';
 
 const api = window.bestdict;
 const terminal = new Set(['complete', 'cancelled', 'error']);
@@ -69,7 +70,7 @@ export default function SettingsDialog({ settings, status, catalog, initialTab, 
     if (installing.current || job || saving) return;
     setSaving(true); setError('');
     try { onSaved(await api.setSettings({ theme: draft.theme, locale: draft.locale, startup: draft.startup, shortcut: draft.shortcut,
-      miniShortcut: draft.miniShortcut, miniHideOnBlur: draft.miniHideOnBlur, miniRememberPosition: draft.miniRememberPosition,
+      captureShortcut: draft.captureShortcut, miniShortcut: draft.miniShortcut, miniHideOnBlur: draft.miniHideOnBlur, miniRememberPosition: draft.miniRememberPosition,
       dictionaryId: draft.dictionaryId, translationEngine: draft.translationEngine, speech: draft.speech })); onClose(); }
     catch (e) { setError(errorText(e)); }
     finally { setSaving(false); }
@@ -146,9 +147,10 @@ export default function SettingsDialog({ settings, status, catalog, initialTab, 
     }}>
       <div className="dialog-heading"><h2 id="settings-title">{t("设置")}</h2><button className="icon-button" aria-label={t("关闭设置")} onClick={onClose}><X size={19} /></button></div>
       <div className="settings-tabs" role="tablist" aria-label={t("设置分类")}>{[
-        ['general', t("通用"), Settings2], ['dictionaries', t("词库"), BookOpen], ['engines', t("翻译引擎"), Sparkles], ['speech', t('发音'), Volume2],
+        ['general', t("通用"), Settings2], ['dictionaries', t("词库"), BookOpen], ['engines', t("翻译引擎"), Sparkles], ['speech', t('发音'), Volume2], ['capture', t('截图翻译'), Copy],
       ].map(([value, label, Icon]) => { const TabIcon = Icon as typeof Settings2; return <button key={value as string} role="tab" aria-selected={tab === value} onClick={() => setTab(value as string)}><TabIcon size={14} />{label as string}</button>; })}</div>
       <div className="settings-body">
+        {tab === 'capture' && <OCRSettings t={t} />}
         {tab === 'speech' && <>
           <p className="settings-intro">{t('点击译文旁的发音按钮播放，再点一次停止。语音在本机生成。')}</p>
           <div className="setting-row"><label htmlFor="speech-engine">{t('发音引擎')}</label><select id="speech-engine" value={draft.speech.engine} onChange={e => setDraft({ ...draft, speech: { ...draft.speech, engine: e.target.value as Settings['speech']['engine'] } })}>
@@ -187,12 +189,12 @@ export default function SettingsDialog({ settings, status, catalog, initialTab, 
             {cacheNotice && <p role="status">{t(cacheNotice)}</p>}{cacheError && <p role="alert">{t(cacheError)}</p>}
           </div>
         </>}
-        {(error || settings.shortcutError || settings.miniShortcutError) && <div className="error-banner" role="alert">{t(error || settings.shortcutError || settings.miniShortcutError)}</div>}
+        {(error || settings.shortcutError || settings.miniShortcutError || settings.captureShortcutError) && <div className="error-banner" role="alert">{t(error || settings.shortcutError || settings.miniShortcutError || settings.captureShortcutError)}</div>}
         {tab === 'general' && <>
           <div className="setting-row"><label htmlFor="interface-language">{t("界面语言")}</label><select id="interface-language" className="language-select" value={draft.locale} onChange={e => setDraft({ ...draft, locale: e.target.value as Settings['locale'] })}><option value="zh-CN">{t("简体中文")}</option><option value="en">English</option></select></div>
           <div className="setting-block"><label>{t("外观主题")}</label><div className="theme-options">{([['light', t("浅色"), Sun], ['dark', t("深色"), Moon], ['system', t("跟随系统"), Command]] as const).map(([value, label, Icon]) => <button key={value} aria-pressed={draft.theme === value} className={draft.theme === value ? 'picked' : ''} onClick={() => setDraft({ ...draft, theme: value })}><Icon size={18} />{label}</button>)}</div></div>
           <div className="setting-row"><div><label htmlFor="startup">{t("开机自动启动")}</label><p>{settings.startupAvailable ? t("登录系统后常驻托盘，不打扰工作。") : t("安装正式版本后可启用。")}</p></div><input id="startup" type="checkbox" className="switch" disabled={!settings.startupAvailable} checked={draft.startup} onChange={e => setDraft({ ...draft, startup: e.target.checked })} /></div>
-          {(['shortcut', 'miniShortcut'] as const).map(key => <div className="setting-block" key={key}><label htmlFor={key}>{t(key === 'shortcut' ? "全局快捷键" : '迷你模式快捷键')}</label><p>{t("点击下方输入框，按下你想使用的组合键。")}</p><input id={key} className="shortcut-input" readOnly value={prettyShortcut(draft[key])} onKeyDown={e => {
+          {(['shortcut', 'miniShortcut', 'captureShortcut'] as const).map(key => <div className="setting-block" key={key}><label htmlFor={key}>{t(key === 'shortcut' ? "全局快捷键" : key === 'miniShortcut' ? '迷你模式快捷键' : '截图翻译快捷键')}</label><p>{t("点击下方输入框，按下你想使用的组合键。")}</p><input id={key} className="shortcut-input" readOnly value={prettyShortcut(draft[key])} onKeyDown={e => {
             if (e.key === 'Tab' || e.key === 'Escape') return;
             e.preventDefault();
             if (!/^[a-z0-9]$/i.test(e.key) && !/^F\d{1,2}$/.test(e.key)) return;

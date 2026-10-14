@@ -109,7 +109,7 @@ try {
     return { labels: native.getTrayMenu().items.map(item => item.label), storedLocale: stored.locale };
   });
   assert.equal(nativeLanguage.storedLocale, 'en');
-  assert.deepEqual(nativeLanguage.labels, ['Open BestDict', 'Mini mode', 'Settings', '', 'Quit']);
+  assert.deepEqual(nativeLanguage.labels, ['Open BestDict', 'Mini mode', 'Screenshot translation', 'Settings', '', 'Quit']);
   await page.getByRole('button', { name: 'Clear', exact: true }).click();
   await page.screenshot({ path: path.join(captures, 'english-welcome.png') });
   await page.getByRole('button', { name: 'Settings', exact: true }).click();

@@ -4,7 +4,7 @@
   <p><strong>专注本地AI查词翻译<br/>纯净、无广告、无订阅</strong></p>
   <p>A quiet, offline-first desktop dictionary & translator.</p>
   <p>
-    <img src="https://img.shields.io/badge/version-0.4.13-0067b8" alt="Version 0.4.13" />
+    <img src="https://img.shields.io/badge/version-0.4.14-0067b8" alt="Version 0.4.14" />
     <img src="https://img.shields.io/badge/platform-Windows_x64-0078d4" alt="Windows x64" />
     <img src="https://img.shields.io/badge/Electron-React_·_TypeScript-47848f" alt="Electron, React and TypeScript" />
     <a href="LICENSE"><img src="https://img.shields.io/badge/code_license-MIT-3d8558" alt="Code license: MIT" /></a>
@@ -25,6 +25,7 @@ BestDict 是一款 Windows x64 离线词典与翻译软件。按下 `Ctrl + Shif
 - **扩展词库**：按需安装西班牙语、日语、韩语、法语的中文释义词库，支持自动匹配已安装词库。
 - **桌面常驻**：全局快捷键、托盘、自启动、浅深色主题和中英文界面。
 - **迷你模式**：`Alt + Shift + D` 唤起紧凑查词窗，支持发音、复制、固定置顶和展开完整释义；快捷键及失焦隐藏可在设置中调整。
+- **截图翻译（Windows）**：在 **设置 → 截图翻译** 下载约 31 MB OCR 模型后，按 `Alt + Shift + S` 框选屏幕文字，松开后离线识别。结果窗支持编辑原文、翻译、复制、发音与置顶；优先使用已安装的 HY，或已启用的 Argos，未安装翻译模型仍可提取文字。`Esc` / 右键取消框选；截图仅在内存中处理，快捷键可在通用设置中修改。
 - **毛玻璃界面**：冰蓝浅色与深海深色主题，Windows 11 22H2 及以上使用原生 Acrylic；其他系统保留应用内玻璃层次，并支持减少透明效果和动画。
 - **发音缓存**：生成的音频在本机复用，重启后仍可使用；按文本、语言、音色、语速和模型区分，最多 128 MiB / 1,000 条，超限淘汰最近最少使用的音频，可在 **设置 → 发音 → 音频缓存** 查看占用并清理。
 
@@ -112,6 +113,9 @@ npm.cmd run package
 
 安装包位于 `release/`。桌面测试使用独立配置，
 不修改真实用户的开机启动，也不关闭正在运行的客户端。
+完成上面的环境准备后，也可以双击根目录的 `package.bat` 打包，默认输出到
+`release/v<版本号>/`，结束后保留窗口显示结果。命令行运行 `./package.bat --no-pause`
+可跳过结束暂停；已设置 `BESTDICT_RELEASE_DIR` 时沿用指定目录。
 完整资源与打包后测试见 [测试文档](docs/TESTING.md)。
 `npm test` 默认跳过真实模型推理；显式准备测试模型并设置 `BESTDICT_REAL_ASSETS=1` 后执行完整推理测试。
 打包脚本还会扫描发行资源，发现 Argos / HY 权重时报告失败。

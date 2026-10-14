@@ -31,8 +31,10 @@ child.on('exit', code => {
     }
   }
   inspect(assets);
+  const ocrModels = path.join(output, 'win-unpacked/resources/python/Lib/site-packages/rapidocr/models');
+  if (existsSync(ocrModels) && readdirSync(ocrModels).some(name => /\.onnx$/i.test(name))) forbidden.push(ocrModels);
   if (forbidden.length) {
     console.error('Unexpected bundled translation weights:', forbidden);
     process.exitCode = 1;
-  } else console.log('Verified: release assets contain no Argos or HY translation weights.');
+  } else console.log('Verified: release assets contain no Argos, HY or OCR weights.');
 });

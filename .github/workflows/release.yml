@@ -117,6 +117,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           npm run test:mini
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm run test:capture
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Prepare checksum and release notes
         run: |
