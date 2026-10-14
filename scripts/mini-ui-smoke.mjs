@@ -7,8 +7,7 @@ const env = { ...process.env, BESTDICT_TEST: '1', BESTDICT_TEST_SHORTCUT: 'Contr
 delete env.ELECTRON_RUN_AS_NODE;
 delete env.BESTDICT_LIBRARY;
 const executablePath = process.env.BESTDICT_TEST_EXE;
-const audioArgs = process.platform === 'darwin' && process.env.CI ? ['--disable-audio-output'] : [];
-const desktop = await electron.launch({ executablePath, args: [...(executablePath ? [] : ['.']), ...audioArgs], env });
+const desktop = await electron.launch({ executablePath, args: executablePath ? [] : ['.'], env });
 const errors = [];
 const output = path.resolve('test-results/mini');
 await mkdir(output, { recursive: true });

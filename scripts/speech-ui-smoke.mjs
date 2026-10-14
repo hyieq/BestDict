@@ -6,10 +6,7 @@ const env = { ...process.env, BESTDICT_TEST: '1', BESTDICT_TEST_SHORTCUT: 'Contr
 delete env.ELECTRON_RUN_AS_NODE;
 delete env.BESTDICT_LIBRARY;
 const executablePath = process.env.BESTDICT_TEST_EXE;
-// Hosted Macs have a throttled virtual sound device. Decode real WAV audio and
-// exercise ended/cancellation events using Chromium's clocked fake output sink.
-const audioArgs = process.platform === 'darwin' && process.env.CI ? ['--disable-audio-output'] : [];
-const desktop = await electron.launch({ args: [...(executablePath ? [] : ['.']), ...audioArgs], executablePath, cwd: process.cwd(), env });
+const desktop = await electron.launch({ args: executablePath ? [] : ['.'], executablePath, cwd: process.cwd(), env });
 try {
   const page = await desktop.firstWindow();
   const errors = [];
@@ -109,7 +106,9 @@ try {
   await release();
   await page.waitForFunction(() => window.__played === 4);
   try {
-    await ai.getByRole('button', { name: '播放发音' }).waitFor({ timeout: 8000 });
+    // Hosted Macs can advance their virtual sound device slower than wall time.
+    // Still require the real ended event; do not simulate completion or skip it.
+    await ai.getByRole('button', { name: '播放发音' }).waitFor({ timeout: process.platform === 'darwin' && process.env.CI ? 30000 : 8000 });
   } catch (error) {
     console.log('Playback evidence:', await page.evaluate(() => {
       const audio = window.__lastSpeechAudio;
