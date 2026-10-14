@@ -45,7 +45,7 @@ function updateWindowAppearance() {
   appearance = { material, dark, reducedTransparency };
   window.webContents.send('window:appearance', appearance);
 }
-const defaults = { aiStylesVersion: 0, aiStyles: defaultStyles, aiStyleId: 'basic', startup: true, shortcut: testing ? (process.env.BESTDICT_TEST_SHORTCUT || 'Control+Shift+D') : 'Control+Shift+D', theme: 'system', locale: 'zh-CN', trayHintSeen: false, bounds: null, dictionaryId: 'ecdict', autoDictionary: true, translationEngine: 'none' };
+const defaults = { aiStylesVersion: 0, aiStyles: defaultStyles, aiStyleId: 'basic', startup: true, shortcut: testing ? (process.env.BESTDICT_TEST_SHORTCUT || 'Control+Shift+D') : 'Control+Shift+D', theme: 'system', locale: 'zh-CN', trayHintSeen: false, bounds: null, dictionaryId: 'ecdict', autoDictionary: true, translationEngine: 'none', translationNoticeDismissed: false };
 const root = app.isPackaged ? process.resourcesPath : path.join(__dirname, '..');
 const assets = app.isPackaged ? path.join(root, 'assets') : path.join(root, 'resources');
 
@@ -58,6 +58,7 @@ function loadSettings() {
     catch { settings = { ...defaults }; }
   }
   if (typeof settings.autoDictionary !== 'boolean') settings.autoDictionary = true;
+  if (typeof settings.translationNoticeDismissed !== 'boolean') settings.translationNoticeDismissed = false;
   try { settings.speech = validateSpeech(settings.speech); } catch { settings.speech = defaultSpeech; }
   try { settings.aiStyles = validateStyles(settings.aiStyles); } catch { settings.aiStyles = defaultStyles; }
   if (settings.aiStylesVersion < 2) {
@@ -280,6 +281,10 @@ function setupIPC() {
     if ('autoDictionary' in changes) {
       if (typeof changes.autoDictionary !== 'boolean') throw new Error('自动匹配设置无效。');
       next.autoDictionary = changes.autoDictionary;
+    }
+    if ('translationNoticeDismissed' in changes) {
+      if (typeof changes.translationNoticeDismissed !== 'boolean') throw new Error('提示显示设置无效。');
+      next.translationNoticeDismissed = changes.translationNoticeDismissed;
     }
     if ('locale' in changes) {
       if (!['zh-CN', 'en'].includes(changes.locale)) throw new Error('界面语言无效。');

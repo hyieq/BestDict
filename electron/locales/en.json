@@ -393,5 +393,11 @@
   "关闭": "Close",
   "自动识别": "Detect automatically",
   "识别已取消，请重新截图。": "Recognition cancelled. Capture another screenshot.",
-  "复制内容过长。": "The text is too long to copy."
+  "复制内容过长。": "The text is too long to copy.",
+  "关闭翻译状态提示": "Dismiss translation status",
+  "提示显示设置无效。": "Invalid notice visibility setting.",
+  "使用说明": "Usage notes",
+  "发音与缓存说明": "Speech and cache notes",
+  "截图翻译说明": "Screenshot translation notes",
+  "点击快捷键输入框，再按组合键。": "Click a shortcut field, then press the key combination."
 }

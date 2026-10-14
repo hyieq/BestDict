@@ -267,6 +267,11 @@ export default function App() {
     catch (e) { setError(errorText(e)); }
   }
 
+  async function dismissTranslationNotice() {
+    try { setSettings(await api.setSettings({ translationNoticeDismissed: true })); }
+    catch (e) { setError(errorText(e)); }
+  }
+
   if (mini) return <MiniDictionary query={query} entry={currentEntry} corrected={lookup.corrected} busy={busy} pinned={windowMode.pinned}
     copied={copied} error={error || speech.error || settings?.miniShortcutError || ''} input={input} t={t}
     onQuery={changeQuery} onSearch={translateNow} onCopy={() => void copyResult()} onComposition={setComposing}
@@ -329,7 +334,10 @@ export default function App() {
             </select><ChevronDown size={12} /></div>}
           {mode !== 'translate' && <label className="auto-dictionary" title={t("在已安装词库中自动匹配；关闭后只查当前词库。")}>{t("自动匹配词库")}<input type="checkbox" aria-label={t("自动匹配词库")} checked={settings?.autoDictionary ?? true} onChange={e => { void quickSettings({ autoDictionary: e.target.checked }); }} /></label>}
         </div>
-        <button className={`translation-engine-status ${sentenceEnabled ? 'enabled' : ''}`} data-testid="translation-engine-status" onClick={() => openSettings('engines')}><ArrowLeftRight size={13} /><span>{t('基础句子翻译：')}{sentenceEnabled ? 'Argos Translate' : t('未开启')}</span><span>{sentenceEnabled ? t('已启用') : t('设置')}<ChevronDown size={12} /></span></button>
+        {settings && !settings.translationNoticeDismissed && <div className="translation-engine-notice" data-testid="translation-engine-notice">
+          <button className={`translation-engine-status ${sentenceEnabled ? 'enabled' : ''}`} data-testid="translation-engine-status" onClick={() => openSettings('engines')}><ArrowLeftRight size={13} /><span>{t('基础句子翻译：')}{sentenceEnabled ? 'Argos Translate' : t('未开启')}</span><span>{sentenceEnabled ? t('已启用') : t('设置')}<ChevronDown size={12} /></span></button>
+          <button className="translation-notice-close" aria-label={t('关闭翻译状态提示')} title={t('关闭翻译状态提示')} onClick={() => void dismissTranslationNotice()}><X size={14} /></button>
+        </div>}
         {(error || status?.error || status?.shortcutError) && <div className="error-banner" role="alert">{t(error || status?.error || status?.shortcutError || '')}</div>}
         {speech.error && <div className="error-banner" role="alert">{t(speech.error)}</div>}
         <div className={`results-stack ${ai.visible ? 'has-ai' : ''}`}>

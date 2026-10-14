@@ -15,7 +15,7 @@ export interface Settings {
   locale: 'zh-CN' | 'en'; traySettingsAvailable: boolean; captureAvailable: boolean;
   startup: boolean; shortcut: string; theme: 'system' | 'light' | 'dark';
   shortcutError: string; startupAvailable: boolean;
-  dictionaryId: string; autoDictionary: boolean; translationEngine: 'none' | 'argos';
+  dictionaryId: string; autoDictionary: boolean; translationEngine: 'none' | 'argos'; translationNoticeDismissed: boolean;
 }
 export interface Status { version: string; dictionaryCount: number; modelReady: boolean; error: string; shortcutError: string; dictionaryName: string; engine: string }
 export interface Translation { text: string; direction: string; cached: boolean; engine: string; targetLanguage?: string; styleName?: string; polished?: boolean }

@@ -4,7 +4,7 @@
   <p><strong>专注本地AI查词翻译<br/>纯净、无广告、无订阅</strong></p>
   <p>A quiet, offline-first desktop dictionary & translator.</p>
   <p>
-    <img src="https://img.shields.io/badge/version-0.4.15-0067b8" alt="Version 0.4.15" />
+    <img src="https://img.shields.io/badge/version-0.4.16-0067b8" alt="Version 0.4.16" />
     <img src="https://img.shields.io/badge/platform-Windows_x64-0078d4" alt="Windows x64" />
     <img src="https://img.shields.io/badge/Electron-React_·_TypeScript-47848f" alt="Electron, React and TypeScript" />
     <a href="LICENSE"><img src="https://img.shields.io/badge/code_license-MIT-3d8558" alt="Code license: MIT" /></a>

@@ -1,5 +1,15 @@
 # Testing
 
+## 紧凑设置与翻译提示
+
+构建后运行 `npm run test:settings`，使用隔离配置验证翻译状态提示关闭后落盘，
+页面重载、语言和外观切换不会重新显示；验证快捷键标题和输入框同行、说明默认折叠
+且可展开，覆盖五个设置页、中英文、浅深色、780×580 小窗口与 150% 缩放。
+结果和实际客户端截图保存在 `test-results/settings`。
+`npm run test:translation-ui` 另验证关闭启用中的 Argos 提示不会关闭翻译引擎、
+取消正在执行的 AI 翻译，或在切换引擎后重新显示提示。
+仅设置 `BESTDICT_UPDATE_PREVIEWS=1` 时，设置测试会用真实离线查词界面更新 README 主界面预览。
+
 ## macOS Apple Silicon 预览包
 
 `.github/workflows/macos.yml` 在 Apple Silicon `macos-15` 上运行，可手动触发，

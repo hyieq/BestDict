@@ -83,6 +83,12 @@ try {
   await page.getByRole('button', { name: 'AI 翻译', exact: true }).click();
   await page.getByText('AI 正在翻译，首次使用需要加载模型…').waitFor();
   assert.equal((await calls()).ai, 1);
+  const cancelledBeforeDismiss = await desktop.evaluate(() => globalThis.__routing.cancelled);
+  await page.getByRole('button', { name: '关闭翻译状态提示', exact: true }).click();
+  await page.getByTestId('translation-engine-notice').waitFor({ state: 'detached' });
+  assert.equal(await desktop.evaluate(() => globalThis.__routing.cancelled), cancelledBeforeDismiss, 'Dismissing a notice must not cancel AI translation.');
+  assert.equal(await page.evaluate(() => window.bestdict.getSettings().then(s => s.translationEngine)), 'argos');
+  assert.equal(await desktop.evaluate(() => globalThis.__bestdictNative.readSettings().translationNoticeDismissed), true, 'Dismissal is saved to disk.');
   await desktop.evaluate(() => { const pending = globalThis.__routing.pending; globalThis.__routing.pending = null; pending.resolve({ text: 'AI 译文：请在周五之前把报告发给我。', direction: 'en-zh', engine: 'Hy-MT2', cached: false }); });
   await page.getByTestId('ai-translation-result').waitFor();
   assert.equal(await page.getByTestId('translation-result').count(), 1, 'The Argos result remains alongside AI.');
@@ -132,6 +138,9 @@ try {
   await page.getByRole('button', { name: 'AI 翻译', exact: true }).click();
   await page.getByTestId('engine-hy').getByText('未安装', { exact: true }).waitFor();
   assert.equal((await calls()).ai, beforeMissingAI, 'Missing HY opens setup without starting inference or download.');
+  await page.reload();
+  await page.getByText('离线资源已就绪').waitFor();
+  assert.equal(await page.getByTestId('translation-engine-notice').count(), 0, 'Dismissed notice stays hidden after reload and changing engines.');
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth > innerWidth || document.documentElement.scrollHeight > innerHeight);
   assert.equal(overflow, false);
   assert.deepEqual(errors, []);
