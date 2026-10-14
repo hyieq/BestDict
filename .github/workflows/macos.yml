@@ -37,14 +37,14 @@ jobs:
         run: npm ci --registry=https://registry.npmjs.org
       - name: Prepare portable runtimes and offline dictionary
         run: |
-          python scripts/setup_assets.py
-          python scripts/setup_hy_runtime.py
-          python scripts/copy_licenses.py
+          node scripts/ci-command.mjs assets python scripts/setup_assets.py
+          node scripts/ci-command.mjs llama python scripts/setup_hy_runtime.py
+          node scripts/ci-command.mjs licenses python scripts/copy_licenses.py
           echo "BESTDICT_PYTHON=$PWD/runtime/python/bin/python3" >> "$GITHUB_ENV"
       - name: Test resources and speech installer
         run: |
-          npm test
-          python -m unittest discover -s tests -p test_speech_installer.py
+          node scripts/ci-command.mjs resources npm test
+          node scripts/ci-command.mjs speech-installer python -m unittest discover -s tests -p test_speech_installer.py
       - name: Build ad-hoc signed DMG and ZIP
         run: node scripts/ci-command.mjs package npm run package
       - name: Verify relocated application and native dependencies
