@@ -40,7 +40,7 @@ try {
   await page.evaluate(() => {
     window.__played = 0;
     const play = HTMLMediaElement.prototype.play;
-    HTMLMediaElement.prototype.play = function () { window.__played++; this.muted = true; return play.call(this); };
+    HTMLMediaElement.prototype.play = function () { window.__played++; window.__lastSpeechAudio = this; this.muted = true; return play.call(this); };
   });
   const input = page.getByRole('textbox', { name: '输入单词或句子' });
   await input.fill('Please send the report on Friday.');
@@ -105,7 +105,16 @@ try {
   await ai.getByRole('button', { name: '播放发音' }).click();
   await release();
   await page.waitForFunction(() => window.__played === 4);
-  await ai.getByRole('button', { name: '播放发音' }).waitFor({ timeout: 8000 });
+  try {
+    await ai.getByRole('button', { name: '播放发音' }).waitFor({ timeout: 8000 });
+  } catch (error) {
+    console.log('Playback evidence:', await page.evaluate(() => {
+      const audio = window.__lastSpeechAudio;
+      return { time: audio?.currentTime, duration: audio?.duration, paused: audio?.paused,
+        ended: audio?.ended, readyState: audio?.readyState, error: audio?.error?.message, hidden: document.hidden };
+    }));
+    throw error;
+  }
   await ai.getByRole('button', { name: '播放发音' }).click();
   await page.evaluate(() => window.bestdict.hide());
   await release();

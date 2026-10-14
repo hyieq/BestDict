@@ -78,6 +78,8 @@ try {
   await page.getByTestId('entry-word').filter({ hasText: 'serendipity' }).waitFor();
   assert.equal(await page.locator('.search-box textarea').inputValue(), 'serendipity');
   const restored = await desktop.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].getBounds());
+  console.log('Window restoration evidence:', JSON.stringify({ original, restored, miniPosition,
+    native: await desktop.evaluate(({ screen }) => ({ displays: screen.getAllDisplays(), settings: globalThis.__bestdictNative.readSettings() })) }));
   for (const key of ['x', 'y', 'width', 'height']) assert.ok(Math.abs(restored[key] - original[key]) <= 1, 'restore ' + key);
   assert.equal(await desktop.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].isAlwaysOnTop()), false);
   await desktop.evaluate(() => globalThis.__bestdictNative.toggleMini());
