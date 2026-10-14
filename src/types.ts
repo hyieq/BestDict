@@ -18,6 +18,7 @@ export interface Settings {
   dictionaryId: string; autoDictionary: boolean; translationEngine: 'none' | 'argos'; translationNoticeDismissed: boolean;
 }
 export interface Status { version: string; dictionaryCount: number; modelReady: boolean; error: string; shortcutError: string; dictionaryName: string; engine: string }
+export interface UpdateStatus { state: 'latest' | 'available' | 'unavailable' | 'unpublished'; currentVersion: string; latestVersion: string | null }
 export interface Translation { text: string; direction: string; cached: boolean; engine: string; targetLanguage?: string; styleName?: string; polished?: boolean }
 export interface DictionaryInfo {
   id: string; name: string; languageName: string; languageCode: string; example: string;
@@ -59,6 +60,8 @@ export interface DesktopAPI {
   cancelAITranslation(): Promise<void>;
   cancelTranslation(): Promise<void>;
   status(): Promise<Status>;
+  checkForUpdates(): Promise<UpdateStatus>;
+  openUpdatePage(target: 'release' | 'download'): Promise<void>;
   getSettings(): Promise<Settings>;
   setSettings(settings: Partial<Settings>): Promise<Settings>;
   getResources(): Promise<ResourceCatalog>;

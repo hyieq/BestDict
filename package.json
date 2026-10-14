@@ -1,6 +1,6 @@
 {
   "name": "bestdict",
-  "version": "0.4.16",
+  "version": "0.4.17",
   "private": true,
   "description": "A quiet, offline-first bilingual desktop dictionary",
   "author": "BestDict",
@@ -11,7 +11,7 @@
     "build": "tsc --noEmit && vite build",
     "start": "electron .",
     "test": "node --test tests/*.test.cjs",
-    "test:unit": "node --test tests/resources.test.cjs tests/hy.test.cjs tests/query-policy.test.cjs",
+    "test:unit": "node --test tests/resources.test.cjs tests/hy.test.cjs tests/query-policy.test.cjs tests/updates.test.cjs",
     "test:desktop": "node scripts/smoke.mjs",
     "test:glass": "node scripts/glass-ui-smoke.mjs",
     "test:mini": "node scripts/mini-ui-smoke.mjs",

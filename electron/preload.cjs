@@ -48,6 +48,8 @@ contextBridge.exposeInMainWorld('bestdict', {
   cancelAITranslation: () => ipcRenderer.invoke('translation:ai-cancel'),
   cancelTranslation: () => ipcRenderer.invoke('translation:cancel'),
   status: () => ipcRenderer.invoke('app:status'),
+  checkForUpdates: () => ipcRenderer.invoke('updates:check'),
+  openUpdatePage: target => ipcRenderer.invoke('updates:open', target),
   getSettings: () => ipcRenderer.invoke('settings:get'),
   setSettings: settings => ipcRenderer.invoke('settings:set', settings),
   getResources: () => ipcRenderer.invoke('resources:list'),

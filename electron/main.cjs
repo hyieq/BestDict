@@ -12,6 +12,7 @@ const { HyTranslator } = require('./hy.cjs');
 const { OCRService } = require('./ocr.cjs');
 const { CaptureService } = require('./capture.cjs');
 const { basicDirection } = require('./query-policy.mjs');
+const { UpdateService } = require('./updates.cjs');
 const english = require('./locales/en.json');
 
 protocol.registerSchemesAsPrivileged([{ scheme: 'bestdict', privileges: { standard: true, secure: true, supportFetchAPI: true } }]);
@@ -48,6 +49,7 @@ function updateWindowAppearance() {
 const defaults = { aiStylesVersion: 0, aiStyles: defaultStyles, aiStyleId: 'basic', startup: true, shortcut: testing ? (process.env.BESTDICT_TEST_SHORTCUT || 'Control+Shift+D') : 'Control+Shift+D', theme: 'system', locale: 'zh-CN', trayHintSeen: false, bounds: null, dictionaryId: 'ecdict', autoDictionary: true, translationEngine: 'none', translationNoticeDismissed: false };
 const root = app.isPackaged ? process.resourcesPath : path.join(__dirname, '..');
 const assets = app.isPackaged ? path.join(root, 'assets') : path.join(root, 'resources');
+const updates = new UpdateService({ version: app.getVersion(), openExternal: url => shell.openExternal(url) });
 
 function loadSettings() {
   Object.assign(defaults, { captureShortcut: testing ? 'Control+Alt+Shift+F8' : 'Alt+Shift+S', miniShortcut: testing ? 'Control+Alt+Shift+F9' : 'Alt+Shift+D', miniHideOnBlur: true, miniRememberPosition: true, miniBounds: null });
@@ -360,6 +362,8 @@ function setupIPC() {
     };
   });
   handle('speech:catalog', () => speech.catalog());
+  handle('updates:check', () => updates.check());
+  handle('updates:open', target => updates.open(target));
   handle('speech:cache-status', () => speech.cacheStatus());
   handle('speech:clear-cache', () => speech.clearCache());
   handle('speech:synthesize', request => speech.synthesize(request?.text, request?.language, settings.speech));
@@ -503,5 +507,5 @@ app.on('will-quit', () => { globalShortcut.unregisterAll(); tray?.destroy(); });
 // Native tray interaction is exercised by Playwright in an isolated test process.
 if (testing) globalThis.__bestdictNative = { getTray: () => tray, getTrayMenu: () => trayMenu,
   toggleMini, toggleMain: toggle,
-  getServices: () => ({ resources, translator, hy, speech, ocr, capture, captureTranslator, captureHy }),
+  getServices: () => ({ resources, translator, hy, speech, ocr, capture, captureTranslator, captureHy, updates }),
   readSettings: () => JSON.parse(fs.readFileSync(settingsPath, 'utf8')) };

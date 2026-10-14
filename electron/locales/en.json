@@ -399,5 +399,20 @@
   "使用说明": "Usage notes",
   "发音与缓存说明": "Speech and cache notes",
   "截图翻译说明": "Screenshot translation notes",
-  "点击快捷键输入框，再按组合键。": "Click a shortcut field, then press the key combination."
+  "点击快捷键输入框，再按组合键。": "Click a shortcut field, then press the key combination.",
+  "检查更新": "Check for updates",
+  "正在检查更新…": "Checking…",
+  "未发现更新，当前版本 v{version}。": "No update found. Current version: v{version}.",
+  "发现新版本 v{version}": "Version v{version} is available",
+  "此版本暂无适用于当前系统的安装包。": "An installer for this platform is not available yet.",
+  "下载更新": "Download update",
+  "更新内容": "What's new",
+  "打开发布页": "Open releases",
+  "暂未发布正式版本。": "No stable release has been published yet.",
+  "GitHub 暂时限制了检查请求，请稍后重试。": "GitHub has temporarily limited update checks. Try again later.",
+  "暂时无法连接 GitHub，请稍后重试。": "GitHub is temporarily unavailable. Try again later.",
+  "更新信息无效，请稍后重试。": "The update information is invalid. Try again later.",
+  "检查更新超时，请重试。": "The update check timed out. Try again.",
+  "检查更新失败，请检查网络后重试。": "Update check failed. Check your connection and try again.",
+  "没有适用于当前系统的更新安装包。": "No update installer is available for this platform."
 }

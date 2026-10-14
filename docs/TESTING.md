@@ -1,5 +1,13 @@
 # Testing
 
+## 手动检查更新
+
+`node --test tests/updates.test.cjs` 使用固定 Release 数据和本地 HTTP fixture，
+验证数值版本比较、正式版本过滤、平台安装包匹配、并发合并、5 分钟缓存、
+失败后重试、网络超时，以及只允许打开固定 GitHub 仓库的发布页和安装包。
+测试不访问 GitHub，不下载或执行安装包。`npm run test:settings` 另通过真实 IPC
+验证设置页按钮、检查状态、更新入口、缺少平台安装包和错误提示，打开浏览器的动作在隔离进程中替换。
+
 ## 紧凑设置与翻译提示
 
 构建后运行 `npm run test:settings`，使用隔离配置验证翻译状态提示关闭后落盘，

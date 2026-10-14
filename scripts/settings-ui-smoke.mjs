@@ -17,11 +17,27 @@ try {
   page.on('pageerror', error => errors.push(error.message));
   async function capture(name) {
     await page.evaluate(() => { for (const animation of document.getAnimations()) if (animation.effect?.getTiming().iterations !== Infinity) animation.finish(); });
+    await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
     // capturePage retains the complete physical viewport at 150% page zoom.
     const png = await desktop.evaluate(async ({ BrowserWindow }) => (await BrowserWindow.getAllWindows()[0].webContents.capturePage()).toPNG().toString('base64'));
     await writeFile(path.join(output, name), Buffer.from(png, 'base64'));
   }
   await page.getByText('离线资源已就绪').waitFor();
+  await desktop.evaluate(() => {
+    const { updates } = globalThis.__bestdictNative.getServices();
+    globalThis.__updateTest = { calls: 0, mode: 'available', opened: [], finish: null };
+    updates.openExternal = async url => { globalThis.__updateTest.opened.push(url); };
+    updates.fetchRelease = async () => {
+      const state = globalThis.__updateTest;
+      state.calls++;
+      if (state.mode === 'offline') throw new TypeError('fixture offline');
+      const version = state.mode === 'latest' ? '0.0.1' : '1.0.0';
+      const data = { tag_name: `v${version}`, draft: false, prerelease: false,
+        assets: state.mode === 'missing' ? [] : [`BestDict-${version}-x64-Setup.exe`, `BestDict-${version}-macOS-arm64.dmg`].map(name => ({ name, state: 'uploaded', size: 123 })) };
+      if (state.mode !== 'available') return new Response(JSON.stringify(data));
+      return new Promise(resolve => { state.finish = () => resolve(new Response(JSON.stringify(data))); });
+    };
+  });
   await assert.rejects(page.evaluate(() => window.bestdict.setSettings({ translationNoticeDismissed: 'yes' })), /提示显示设置无效/);
   await page.getByRole('textbox', { name: '输入单词或句子' }).fill('multilingual');
   await page.getByTestId('entry-word').filter({ hasText: 'multilingual' }).waitFor();
@@ -79,7 +95,46 @@ try {
     await page.getByRole('button', { name: locale === 'en' ? 'Close settings' : '关闭设置', exact: true }).click();
   }
   assert.equal(await desktop.evaluate(() => globalThis.__bestdictNative.readSettings().translationNoticeDismissed), true);
+  assert.equal(await desktop.evaluate(() => globalThis.__updateTest.calls), 0, 'Startup and opening settings never check for updates automatically.');
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await page.getByRole('tab', { name: 'General', exact: true }).click();
+  const checkUpdate = page.getByRole('button', { name: 'Check for updates', exact: true });
+  await checkUpdate.click();
+  await page.getByRole('button', { name: 'Checking…', exact: true }).waitFor();
+  assert.equal(await page.getByRole('button', { name: 'Checking…', exact: true }).isDisabled(), true);
+  await desktop.evaluate(() => globalThis.__updateTest.finish());
+  const updateResult = page.getByTestId('update-result');
+  await updateResult.getByText('Version v1.0.0 is available', { exact: true }).waitFor();
+  await updateResult.getByRole('button', { name: 'Download update', exact: true }).click();
+  await updateResult.getByRole('button', { name: "What's new", exact: true }).click();
+  assert.deepEqual(await desktop.evaluate(() => globalThis.__updateTest.opened), [
+    `https://github.com/hyieq/BestDict/releases/download/v1.0.0/BestDict-1.0.0-${process.platform === 'darwin' ? 'macOS-arm64.dmg' : 'x64-Setup.exe'}`,
+    'https://github.com/hyieq/BestDict/releases/tag/v1.0.0',
+  ]);
+  await checkUpdate.click();
+  await checkUpdate.waitFor();
+  await updateResult.getByText('Version v1.0.0 is available', { exact: true }).waitFor();
+  assert.equal(await desktop.evaluate(() => globalThis.__updateTest.calls), 1, 'Repeated manual checks use the short cache.');
+  await capture('update-available.png');
+  const updateLayout = await page.evaluate(() => {
+    const footer = document.querySelector('.dialog-footer').getBoundingClientRect();
+    const result = document.querySelector('.update-result').getBoundingClientRect();
+    return footer.bottom <= innerHeight + 1 && footer.right <= innerWidth + 1 && result.right <= innerWidth + 1;
+  });
+  assert.equal(updateLayout, true, 'Update controls stay inside the compact 150% window.');
+  for (const [mode, message] of [['latest', /No update found/], ['missing', /An installer for this platform is not available yet/], ['offline', /Update check failed/]]) {
+    await desktop.evaluate((_electron, mode) => {
+      globalThis.__updateTest.mode = mode;
+      globalThis.__bestdictNative.getServices().updates.result = null;
+    }, mode);
+    await checkUpdate.click();
+    await updateResult.getByText(message).waitFor();
+    assert.equal(await updateResult.getByRole('button', { name: 'Download update', exact: true }).count(), 0);
+  }
+  await updateResult.getByRole('button', { name: 'Open releases', exact: true }).click();
+  assert.equal(await desktop.evaluate(() => globalThis.__updateTest.opened.at(-1)), 'https://github.com/hyieq/BestDict/releases/latest');
+  await capture('update-error.png');
   assert.deepEqual(errors, []);
-  await writeFile(path.join(output, 'result.json'), JSON.stringify({ passed: true, checks: ['notice dismissal persisted', 'settings do not restore dismissed notice', 'help collapsed and expandable', 'shortcut row alignment', 'all five tabs', 'Chinese light and English dark', 'small window and 150% zoom', 'no horizontal clipping', 'footer stays visible'] }, null, 2));
-  console.log('Settings UI passed: persistent notice dismissal, compact controls, expandable help and responsive tabs.');
+  await writeFile(path.join(output, 'result.json'), JSON.stringify({ passed: true, checks: ['notice dismissal persisted', 'settings do not restore dismissed notice', 'help collapsed and expandable', 'shortcut row alignment', 'all five tabs', 'Chinese light and English dark', 'small window and 150% zoom', 'no horizontal clipping', 'footer stays visible', 'manual update request and short cache', 'correct download and release links', 'latest and unsupported platform results', 'network error and release fallback'] }, null, 2));
+  console.log('Settings UI passed: persistent notice dismissal, compact controls, expandable help, responsive tabs and manual update checks.');
 } finally { await closeElectronTest(desktop); }

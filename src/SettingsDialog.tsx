@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { BookOpen, Check, Command, Copy, Download, ExternalLink, Leaf, LoaderCircle, Moon, Settings2, Sparkles, Sun, Trash2, Upload, Volume2, X } from 'lucide-react';
-import type { ResourceCatalog, ResourceProgress, Settings, Status, SpeechCatalog, SpeechCacheStatus } from './types';
+import type { ResourceCatalog, ResourceProgress, Settings, Status, SpeechCatalog, SpeechCacheStatus, UpdateStatus } from './types';
 import { createTranslator } from './i18n';
 import { useSpeech } from './useSpeech';
 import SpeechButton from './SpeechButton';
@@ -26,6 +26,9 @@ export default function SettingsDialog({ settings, status, catalog, initialTab, 
   const [cacheBusy, setCacheBusy] = useState(false);
   const [cacheError, setCacheError] = useState('');
   const [cacheNotice, setCacheNotice] = useState('');
+  const [updateBusy, setUpdateBusy] = useState(false);
+  const [updateResult, setUpdateResult] = useState<UpdateStatus | null>(null);
+  const [updateError, setUpdateError] = useState('');
   useEffect(() => {
     if (tab !== 'speech' || cacheBusy) return;
     let active = true;
@@ -83,6 +86,21 @@ export default function SettingsDialog({ settings, status, catalog, initialTab, 
       if (mounted.current) { setAudioCache(value); setCacheNotice('音频缓存已清理。'); }
     } catch { if (mounted.current) setCacheError('清理音频缓存失败，请重试。'); }
     finally { if (mounted.current) setCacheBusy(false); }
+  }
+
+  async function checkUpdate() {
+    if (updateBusy) return;
+    setUpdateBusy(true); setUpdateError(''); setUpdateResult(null);
+    try {
+      const result = await api.checkForUpdates();
+      if (mounted.current) setUpdateResult(result);
+    } catch (e) { if (mounted.current) setUpdateError(errorText(e)); }
+    finally { if (mounted.current) setUpdateBusy(false); }
+  }
+
+  async function openUpdate(target: 'release' | 'download') {
+    try { await api.openUpdatePage(target); }
+    catch (e) { if (mounted.current) setUpdateError(errorText(e)); }
   }
 
   async function install(id: string, local: boolean) {
@@ -246,7 +264,16 @@ export default function SettingsDialog({ settings, status, catalog, initialTab, 
         </>}
 
       </div>
-      <div className="dialog-footer"><button className="quit-button" onClick={() => api.quit()}>{t("退出 BestDict")}</button><span>v{status?.version || '0.4.3'}</span><button className="save-button" disabled={saving || !!job || installPending} onClick={save}>{saving ? t("正在保存…") : t("保存设置")}<Check size={15} /></button></div>
+      {(updateResult || updateError) && <div className="update-result" data-testid="update-result" role={updateError ? 'alert' : 'status'}>
+        <span>{updateError ? t(updateError) : updateResult?.state === 'latest' ? t('未发现更新，当前版本 v{version}。', { version: updateResult.currentVersion }) :
+          updateResult?.state === 'unpublished' ? t('暂未发布正式版本。') : <>{t('发现新版本 v{version}', { version: updateResult?.latestVersion || '' })}
+            {updateResult?.state === 'unavailable' && <small>{t('此版本暂无适用于当前系统的安装包。')}</small>}</>}</span>
+        <div>{!updateError && updateResult?.state === 'available' && <button onClick={() => void openUpdate('download')}><Download size={12} />{t('下载更新')}</button>}
+          {(updateError || updateResult?.state !== 'latest') && <button onClick={() => void openUpdate('release')}><ExternalLink size={12} />{t(updateResult?.state === 'available' && !updateError ? '更新内容' : '打开发布页')}</button>}</div>
+      </div>}
+      <div className="dialog-footer"><button className="quit-button" onClick={() => api.quit()}>{t("退出 BestDict")}</button><span>v{status?.version || '0.4.3'}</span>
+        <button className="update-check-button" disabled={updateBusy} onClick={() => void checkUpdate()}>{updateBusy && <LoaderCircle size={12} className="spin" />}{t(updateBusy ? '正在检查更新…' : '检查更新')}</button>
+        <button className="save-button" disabled={saving || !!job || installPending} onClick={save}>{saving ? t("正在保存…") : t("保存设置")}<Check size={15} /></button></div>
     </div>
   </div>;
 }
