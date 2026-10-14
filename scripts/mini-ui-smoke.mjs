@@ -2,6 +2,7 @@ import { _electron as electron } from 'playwright';
 import assert from 'node:assert/strict';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import { closeElectronTest } from './close-electron-test.mjs';
 
 const env = { ...process.env, BESTDICT_TEST: '1', BESTDICT_TEST_SHORTCUT: 'Control+Alt+Shift+F10' };
 delete env.ELECTRON_RUN_AS_NODE;
@@ -134,19 +135,10 @@ try {
   await capture('zoom.png');
   assert.deepEqual(errors, []);
 } finally {
-  // Playwright must disconnect its Node inspector before Cocoa completes quit.
-  // Defer the native call, then use Playwright's close to detach both transports.
   await desktop.evaluate(({ app }) => {
     app.once('before-quit', () => console.log('Mini shutdown: before-quit'));
     app.once('will-quit', () => console.log('Mini shutdown: will-quit'));
-    const nativeQuit = app.quit.bind(app);
-    app.quit = () => { setImmediate(nativeQuit); };
   });
-  let timer;
-  try {
-    await Promise.race([desktop.close(), new Promise((_, reject) => {
-      timer = setTimeout(() => reject(new Error('Graceful Electron shutdown timed out')), 15000);
-    })]);
-  } finally { clearTimeout(timer); }
+  await closeElectronTest(desktop);
 }
 console.log('Mini UI passed: real lookup, copy, shared query, bounds, pin, blur, shortcuts, conflict, English, dark, zoom and graceful quit.');
