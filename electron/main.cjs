@@ -196,7 +196,15 @@ function validateText(text, max) {
 
 function windowBounds() {
   const saved = settings.bounds;
-  if (!saved || !['x', 'y', 'width', 'height'].every(key => Number.isFinite(saved[key]))) return { width: 1020, height: 720 };
+  if (!saved || !['x', 'y', 'width', 'height'].every(key => Number.isFinite(saved[key]))) {
+    if (process.platform !== 'darwin') return { width: 1020, height: 720 };
+    // Cocoa can treat an oversized initial frame as zoomed. Keep a margin so
+    // rememberBounds can save the normal frame before entering mini mode.
+    const area = screen.getPrimaryDisplay().workArea;
+    const width = Math.min(1020, Math.max(780, area.width - 48));
+    const height = Math.min(720, Math.max(580, area.height - 48));
+    return { width, height, x: Math.round(area.x + (area.width - width) / 2), y: Math.round(area.y + (area.height - height) / 2) };
+  }
   const area = screen.getDisplayMatching(saved).workArea;
   const width = Math.min(Math.max(780, saved.width), area.width);
   const height = Math.min(Math.max(580, saved.height), area.height);

@@ -4,6 +4,7 @@
 
 - 新增 macOS Apple Silicon 测试包的 GitHub Actions 构建，输出 DMG、ZIP 与 SHA-256 校验文件。
 - 为 macOS 准备可随包迁移的 Python、Argos / Kokoro 依赖与 llama.cpp 运行时，模型权重保持按需下载。
+- Mac 首次打开时根据可用屏幕设置窗口尺寸，避免小屏幕被系统视为最大化后丢失迷你模式返回位置。
 - Mac 测试包使用临时签名，尚未经过 Apple Developer ID 签名和公证；截图翻译仍仅支持 Windows。
 
 ## 0.4.14

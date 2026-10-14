@@ -7,7 +7,8 @@ const env = { ...process.env, BESTDICT_TEST: '1', BESTDICT_TEST_SHORTCUT: 'Contr
 delete env.ELECTRON_RUN_AS_NODE;
 delete env.BESTDICT_LIBRARY;
 const executablePath = process.env.BESTDICT_TEST_EXE;
-const desktop = await electron.launch({ executablePath, args: executablePath ? [] : ['.'], env });
+const audioArgs = process.platform === 'darwin' && process.env.CI ? ['--disable-audio-output'] : [];
+const desktop = await electron.launch({ executablePath, args: [...(executablePath ? [] : ['.']), ...audioArgs], env });
 const errors = [];
 const output = path.resolve('test-results/mini');
 await mkdir(output, { recursive: true });
@@ -16,6 +17,7 @@ try {
   page.on('pageerror', error => errors.push(error.message));
   await page.getByText('离线资源已就绪').waitFor();
   const original = await desktop.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].getBounds());
+  assert.equal(await desktop.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].isMaximized()), false, 'Initial window must have a normal frame that mini mode can restore.');
   assert.equal(await desktop.evaluate(({ globalShortcut }) => globalShortcut.isRegistered('Control+Alt+Shift+F9')), true);
   await page.getByRole('button', { name: '迷你模式', exact: true }).click();
   const mini = page.getByTestId('mini-window');
@@ -79,7 +81,7 @@ try {
   assert.equal(await page.locator('.search-box textarea').inputValue(), 'serendipity');
   const restored = await desktop.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].getBounds());
   console.log('Window restoration evidence:', JSON.stringify({ original, restored, miniPosition,
-    native: await desktop.evaluate(({ screen }) => ({ displays: screen.getAllDisplays(), settings: globalThis.__bestdictNative.readSettings() })) }));
+    native: await desktop.evaluate(({ screen }) => ({ displays: screen.getAllDisplays(), savedBounds: globalThis.__bestdictNative.readSettings().bounds })) }));
   for (const key of ['x', 'y', 'width', 'height']) assert.ok(Math.abs(restored[key] - original[key]) <= 1, 'restore ' + key);
   assert.equal(await desktop.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].isAlwaysOnTop()), false);
   await desktop.evaluate(() => globalThis.__bestdictNative.toggleMini());

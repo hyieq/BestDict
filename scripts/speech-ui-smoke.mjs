@@ -6,7 +6,10 @@ const env = { ...process.env, BESTDICT_TEST: '1', BESTDICT_TEST_SHORTCUT: 'Contr
 delete env.ELECTRON_RUN_AS_NODE;
 delete env.BESTDICT_LIBRARY;
 const executablePath = process.env.BESTDICT_TEST_EXE;
-const desktop = await electron.launch({ args: executablePath ? [] : ['.'], executablePath, cwd: process.cwd(), env });
+// Hosted Macs have a throttled virtual sound device. Decode real WAV audio and
+// exercise ended/cancellation events using Chromium's clocked fake output sink.
+const audioArgs = process.platform === 'darwin' && process.env.CI ? ['--disable-audio-output'] : [];
+const desktop = await electron.launch({ args: [...(executablePath ? [] : ['.']), ...audioArgs], executablePath, cwd: process.cwd(), env });
 try {
   const page = await desktop.firstWindow();
   const errors = [];
