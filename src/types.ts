@@ -8,6 +8,7 @@ export type Mode = 'auto' | 'dictionary' | 'translate';
 export interface AIStyle { id: string; name: string; prompt: string }
 export interface AIOptions { forceRefresh?: boolean; styleName?: string; stylePrompt?: string; polishPrompt?: string; previousText?: string }
 export interface Settings {
+  miniShortcut: string; miniShortcutError: string; miniHideOnBlur: boolean; miniRememberPosition: boolean;
   speech: SpeechSettings;
   aiStyles: AIStyle[]; aiStyleId: string;
   locale: 'zh-CN' | 'en'; traySettingsAvailable: boolean;
@@ -30,6 +31,11 @@ export interface ResourceCatalog {
   progress: ResourceProgress | null;
 }
 export interface DesktopAPI {
+  getWindowMode(): Promise<{ mini: boolean; pinned: boolean }>;
+  setMiniMode(mini: boolean): Promise<{ mini: boolean; pinned: boolean }>;
+  pinMini(pinned: boolean): Promise<{ mini: boolean; pinned: boolean }>;
+  resizeMini(height: number): Promise<void>;
+  onWindowMode(callback: (state: { mini: boolean; pinned: boolean }) => void): () => void;
   getSpeechCatalog(): Promise<SpeechCatalog>;
   getSpeechCache(): Promise<SpeechCacheStatus>;
   clearSpeechCache(): Promise<SpeechCacheStatus>;

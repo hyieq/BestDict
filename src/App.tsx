@@ -9,6 +9,8 @@ import { isSentence } from '../electron/query-policy.mjs';
 import { useAITranslation } from './useAITranslation';
 import { useSpeech } from './useSpeech';
 import SpeechButton from './SpeechButton';
+import MiniDictionary from './MiniDictionary';
+import { PanelTop } from 'lucide-react';
 
 const api = window.bestdict;
 const emptyLookup: LookupResult = { entries: [], exact: false, corrected: false };
@@ -21,6 +23,8 @@ function errorText(error: unknown) {
 function prettyShortcut(value: string) { return value.replace(/Control/g, 'Ctrl').replace(/Command/g, '⌘').replace(/Super/g, 'Win').replace(/\+/g, ' + '); }
 
 export default function App() {
+  const [windowMode, setWindowMode] = useState({ mini: false, pinned: false });
+  const mini = windowMode.mini;
   const [query, setQuery] = useState('');
   const [mode, setMode] = useState<Mode>('auto');
   const [forcedQuery, setForcedQuery] = useState<string | null>(null);
@@ -60,6 +64,19 @@ export default function App() {
   const aiReady = catalog?.hy.ready ?? false;
   const t = createTranslator(settings?.locale || 'zh-CN');
   const dark = settings?.theme === 'dark' || (settings?.theme !== 'light' && systemDark);
+
+  useEffect(() => {
+    if (!api) return;
+    const update = (state: { mini: boolean; pinned: boolean }) => { setWindowMode(state); setSettingsOpen(false); };
+    const unsubscribe = api.onWindowMode(update);
+    void api.getWindowMode().then(update).catch(e => setError(errorText(e)));
+    return unsubscribe;
+  }, []);
+  useEffect(() => { input.current?.focus(); input.current?.select(); speech.stop(); }, [mini]);
+
+  function switchMini(value: boolean) {
+    void api.setMiniMode(value).catch(e => setError(errorText(e)));
+  }
 
   useEffect(() => {
     if (ai.visible && ai.expanded) aiPanel.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
@@ -115,6 +132,7 @@ export default function App() {
 
   function changeQuery(value: string) {
     invalidate();
+    if (mini) { setLookup(emptyLookup); setBusy(!!value.trim()); }
     immediateRun.current = false;
     setForcedQuery(null);
     if (!value.trim()) setMode('auto');
@@ -126,6 +144,7 @@ export default function App() {
 
   function translateNow() {
     if (!query.trim()) return;
+    if (mini) { immediateRun.current = true; setRunNonce(n => n + 1); return; }
     invalidate();
     immediateRun.current = true;
     setForcedQuery(query);
@@ -153,11 +172,11 @@ export default function App() {
       setError('');
       try {
         let result = emptyLookup;
-        if (!forceTranslation && mode !== 'translate' && text.length <= 100 && !text.includes('\n')) result = await api.lookup(text);
+        if ((mini || (!forceTranslation && mode !== 'translate')) && text.length <= 100 && !text.includes('\n')) result = await api.lookup(text);
         if (!active || id !== revision.current) return;
         setLookup(result);
-        setSelected(0);
-        const useDictionary = !forceTranslation && (mode === 'dictionary' || (mode === 'auto' && (result.exact || !isSentence(text))));
+        setSelected(index => Math.min(index, Math.max(0, result.entries.length - 1)));
+        const useDictionary = mini || (!forceTranslation && (mode === 'dictionary' || (mode === 'auto' && (result.exact || !isSentence(text)))));
         setResolvedMode(useDictionary ? 'dictionary' : 'translate');
         if (useDictionary) { setBusy(false); return; }
         if (settings.translationEngine === 'none') { setBusy(false); return; }
@@ -174,11 +193,12 @@ export default function App() {
       }
     }, delay);
     return () => { active = false; clearTimeout(timer); };
-  }, [query, mode, forcedQuery, direction, composing, runNonce, settings?.dictionaryId, settings?.autoDictionary, settings?.translationEngine]);
+  }, [query, mini, mode, forcedQuery, direction, composing, runNonce, settings?.dictionaryId, settings?.autoDictionary, settings?.translationEngine]);
 
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
       if (event.isComposing || composing) return;
+      if (mini && event.target === input.current && event.key === 'Enter') { event.preventDefault(); translateNow(); return; }
       if (event.key === 'Escape') {
         event.preventDefault();
         if (settingsOpen) { setSettingsOpen(false); input.current?.focus(); }
@@ -201,7 +221,7 @@ export default function App() {
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [query, mode, composing, settingsOpen, resolvedMode, lookup, selected]);
+  }, [query, mini, mode, composing, settingsOpen, resolvedMode, lookup, selected]);
 
   useEffect(() => {
     document.getElementById(`candidate-${selected}`)?.scrollIntoView({ block: 'nearest' });
@@ -238,6 +258,14 @@ export default function App() {
     catch (e) { setError(errorText(e)); }
   }
 
+  if (mini) return <MiniDictionary query={query} entry={currentEntry} corrected={lookup.corrected} busy={busy} pinned={windowMode.pinned}
+    copied={copied} error={error || speech.error || settings?.miniShortcutError || ''} input={input} t={t}
+    onQuery={changeQuery} onSearch={translateNow} onCopy={() => void copyResult()} onComposition={setComposing}
+    onExpand={() => switchMini(false)} onPin={() => void api.pinMini(!windowMode.pinned).catch(e => setError(errorText(e)))}
+    speech={<SpeechButton active={speech.active === 'word'} loading={speech.loading} t={t} onClick={() => { if (currentEntry) void speech.toggle('word', {
+      text: currentEntry.word, direction: resultDictionary?.id === 'ecdict' || !resultDictionary ? (/[\u3400-\u9fff]/.test(currentEntry.word) ? 'zh' : 'en') : resultDictionary.languageCode,
+    }); }} />} />;
+
   return <div className="app-shell">
     <aside className="rail">
       <div className="brand-icon" title="BestDict"><img src={appIcon} alt="BestDict" /></div>
@@ -250,6 +278,7 @@ export default function App() {
       <header className="titlebar">
         <div className="wordmark">Best<span>Dict</span></div>
         <div className="titlebar-actions"><span className="shortcut-pill"><Keyboard size={13} />{prettyShortcut(settings?.shortcut || 'Control+Shift+D')}</span>
+          <button className="chrome-button" aria-label={t('迷你模式')} title={t('迷你模式') + ' · ' + prettyShortcut(settings?.miniShortcut || 'Alt+Shift+D')} onClick={() => switchMini(true)}><PanelTop size={18} /></button>
           <button className="chrome-button github-link" title={t("打开 GitHub 项目")} aria-label={t("打开 GitHub 项目")} onClick={() => void api.openSource('github').catch(e => setError(errorText(e)))}><Github size={19} aria-hidden="true" /><ArrowUpRight size={10} className="external-arrow" aria-hidden="true" /></button>
           <button className="chrome-button" aria-label={t("最小化")} onClick={() => api?.minimize()}><Minus size={17} /></button>
           <button className="chrome-button close" aria-label={t("隐藏窗口")} onClick={() => api?.hide()}><X size={17} /></button>

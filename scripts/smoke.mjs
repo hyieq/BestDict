@@ -109,7 +109,7 @@ try {
     return { labels: native.getTrayMenu().items.map(item => item.label), storedLocale: stored.locale };
   });
   assert.equal(nativeLanguage.storedLocale, 'en');
-  assert.deepEqual(nativeLanguage.labels, ['Open BestDict', 'Settings', '', 'Quit']);
+  assert.deepEqual(nativeLanguage.labels, ['Open BestDict', 'Mini mode', 'Settings', '', 'Quit']);
   await page.getByRole('button', { name: 'Clear', exact: true }).click();
   await page.screenshot({ path: path.join(captures, 'english-welcome.png') });
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
@@ -158,7 +158,7 @@ try {
   assert.equal(await desktop.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].isVisible()), true);
   await desktop.evaluate(({ app }) => {
     const native = globalThis.__bestdictNative;
-    native.getTrayMenu().items[1].click();
+    native.getTrayMenu().items.find(item => item.label === '设置').click();
   });
   await page.getByRole('dialog').waitFor();
   await page.keyboard.press('Escape');

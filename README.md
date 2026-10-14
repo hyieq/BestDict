@@ -4,7 +4,7 @@
   <p><strong>专注本地AI查词翻译<br/>纯净、无广告、无订阅</strong></p>
   <p>A quiet, offline-first desktop dictionary & translator.</p>
   <p>
-    <img src="https://img.shields.io/badge/version-0.4.12-0067b8" alt="Version 0.4.12" />
+    <img src="https://img.shields.io/badge/version-0.4.13-0067b8" alt="Version 0.4.13" />
     <img src="https://img.shields.io/badge/platform-Windows_x64-0078d4" alt="Windows x64" />
     <img src="https://img.shields.io/badge/Electron-React_·_TypeScript-47848f" alt="Electron, React and TypeScript" />
     <a href="LICENSE"><img src="https://img.shields.io/badge/code_license-MIT-3d8558" alt="Code license: MIT" /></a>
@@ -24,27 +24,20 @@ BestDict 是一款 Windows x64 离线词典与翻译软件。按下 `Ctrl + Shif
 - **风格与润色**：基本、专业、口语化、简短四种预设，可编辑提示词和新增风格；译文支持自定义润色与刷新。
 - **扩展词库**：按需安装西班牙语、日语、韩语、法语的中文释义词库，支持自动匹配已安装词库。
 - **桌面常驻**：全局快捷键、托盘、自启动、浅深色主题和中英文界面。
+- **迷你模式**：`Alt + Shift + D` 唤起紧凑查词窗，支持发音、复制、固定置顶和展开完整释义；快捷键及失焦隐藏可在设置中调整。
 - **毛玻璃界面**：冰蓝浅色与深海深色主题，Windows 11 22H2 及以上使用原生 Acrylic；其他系统保留应用内玻璃层次，并支持减少透明效果和动画。
 - **发音缓存**：生成的音频在本机复用，重启后仍可使用；按文本、语言、音色、语速和模型区分，最多 128 MiB / 1,000 条，超限淘汰最近最少使用的音频，可在 **设置 → 发音 → 音频缓存** 查看占用并清理。
 
 <a id="screenshots"></a>
 ## 界面预览
 
-浅色查词：毛玻璃界面、词条发音与顶栏 GitHub 入口。
+完整模式：查看完整释义、词形变化与英文解释。
 
-![浅色查词与词条发音](docs/assets/light-dictionary.png)
+![完整模式](docs/assets/light-dictionary.png)
 
-深色查词：深海配色与清晰的释义阅读区。
+迷你模式：`Alt + Shift + D` 随时查词，支持发音、固定置顶和展开完整释义。
 
-![深色查词](docs/assets/dark-dictionary.png)
-
-本地 AI 翻译：风格选择、译文发音与自定义润色。
-
-![AI 翻译与紧凑润色栏](docs/assets/ai-translation.png)
-
-发音设置：选择音色与语速，查看并清理音频缓存。
-
-![发音设置与音频缓存](docs/assets/speech-cache-settings.png)
+![迷你模式](docs/assets/mini-dictionary.png)
 
 <a id="quick-start"></a>
 ## 开始使用
@@ -145,7 +138,7 @@ npm.cmd run package
 如果 Windows 占用了上次的打包目录，可指定独立输出目录再打包：
 
 ```powershell
-$env:BESTDICT_RELEASE_DIR = "$PWD\release\v0.4.12"
+$env:BESTDICT_RELEASE_DIR = "$PWD\release\v0.4.13"
 npm.cmd run package
 Remove-Item Env:BESTDICT_RELEASE_DIR
 ```

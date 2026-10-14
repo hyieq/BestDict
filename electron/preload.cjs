@@ -1,6 +1,15 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('bestdict', {
+  getWindowMode: () => ipcRenderer.invoke('window:mode'),
+  setMiniMode: mini => ipcRenderer.invoke('window:set-mode', mini),
+  pinMini: pinned => ipcRenderer.invoke('window:pin', pinned),
+  resizeMini: height => ipcRenderer.invoke('window:mini-height', height),
+  onWindowMode: callback => {
+    const listener = (_event, data) => callback(data);
+    ipcRenderer.on('window:mode', listener);
+    return () => ipcRenderer.removeListener('window:mode', listener);
+  },
   getSpeechCatalog: () => ipcRenderer.invoke('speech:catalog'),
   getSpeechCache: () => ipcRenderer.invoke('speech:cache-status'),
   clearSpeechCache: () => ipcRenderer.invoke('speech:clear-cache'),

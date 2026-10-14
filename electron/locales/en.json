@@ -335,5 +335,20 @@
   "最多 {size} MiB 或 {count} 条，超出后自动清理最久未使用的音频。": "Up to {size} MiB or {count} clips. The least recently used audio is removed automatically when the limit is exceeded.",
   "清理只删除音频，保留语音模型。": "Clearing removes audio clips and keeps voice models.",
   "无法读取音频缓存，请重试。": "Could not read the audio cache. Please try again.",
-  "清理音频缓存失败，请重试。": "Could not clear the audio cache. Please try again."
+  "清理音频缓存失败，请重试。": "Could not clear the audio cache. Please try again.",
+  "迷你模式": "Mini mode",
+  "迷你模式快捷键": "Mini mode shortcut",
+  "迷你窗失焦后隐藏": "Hide mini window when focus is lost",
+  "记住迷你窗位置": "Remember mini window position",
+  "两个快捷键不能相同。": "The two shortcuts must be different.",
+  "固定置顶": "Pin on top",
+  "展开主窗口": "Expand to main window",
+  "输入单词或词组": "Enter a word or phrase",
+  "搜索": "Search",
+  "正在查询…": "Searching…",
+  "进入主窗口翻译": "Translate in main window",
+  "已固定": "Pinned",
+  "离线词典": "Offline dictionary",
+  "Enter 搜索 · Esc 收起": "Enter to search · Esc to hide",
+  "完整释义": "Full definition"
 }

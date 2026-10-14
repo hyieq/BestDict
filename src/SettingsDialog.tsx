@@ -69,6 +69,7 @@ export default function SettingsDialog({ settings, status, catalog, initialTab, 
     if (installing.current || job || saving) return;
     setSaving(true); setError('');
     try { onSaved(await api.setSettings({ theme: draft.theme, locale: draft.locale, startup: draft.startup, shortcut: draft.shortcut,
+      miniShortcut: draft.miniShortcut, miniHideOnBlur: draft.miniHideOnBlur, miniRememberPosition: draft.miniRememberPosition,
       dictionaryId: draft.dictionaryId, translationEngine: draft.translationEngine, speech: draft.speech })); onClose(); }
     catch (e) { setError(errorText(e)); }
     finally { setSaving(false); }
@@ -186,18 +187,20 @@ export default function SettingsDialog({ settings, status, catalog, initialTab, 
             {cacheNotice && <p role="status">{t(cacheNotice)}</p>}{cacheError && <p role="alert">{t(cacheError)}</p>}
           </div>
         </>}
-        {(error || settings.shortcutError) && <div className="error-banner" role="alert">{t(error || settings.shortcutError)}</div>}
+        {(error || settings.shortcutError || settings.miniShortcutError) && <div className="error-banner" role="alert">{t(error || settings.shortcutError || settings.miniShortcutError)}</div>}
         {tab === 'general' && <>
           <div className="setting-row"><label htmlFor="interface-language">{t("界面语言")}</label><select id="interface-language" className="language-select" value={draft.locale} onChange={e => setDraft({ ...draft, locale: e.target.value as Settings['locale'] })}><option value="zh-CN">{t("简体中文")}</option><option value="en">English</option></select></div>
           <div className="setting-block"><label>{t("外观主题")}</label><div className="theme-options">{([['light', t("浅色"), Sun], ['dark', t("深色"), Moon], ['system', t("跟随系统"), Command]] as const).map(([value, label, Icon]) => <button key={value} aria-pressed={draft.theme === value} className={draft.theme === value ? 'picked' : ''} onClick={() => setDraft({ ...draft, theme: value })}><Icon size={18} />{label}</button>)}</div></div>
           <div className="setting-row"><div><label htmlFor="startup">{t("开机自动启动")}</label><p>{settings.startupAvailable ? t("登录系统后常驻托盘，不打扰工作。") : t("安装正式版本后可启用。")}</p></div><input id="startup" type="checkbox" className="switch" disabled={!settings.startupAvailable} checked={draft.startup} onChange={e => setDraft({ ...draft, startup: e.target.checked })} /></div>
-          <div className="setting-block"><label htmlFor="shortcut">{t("全局快捷键")}</label><p>{t("点击下方输入框，按下你想使用的组合键。")}</p><input id="shortcut" className="shortcut-input" readOnly value={prettyShortcut(draft.shortcut)} onKeyDown={e => {
+          {(['shortcut', 'miniShortcut'] as const).map(key => <div className="setting-block" key={key}><label htmlFor={key}>{t(key === 'shortcut' ? "全局快捷键" : '迷你模式快捷键')}</label><p>{t("点击下方输入框，按下你想使用的组合键。")}</p><input id={key} className="shortcut-input" readOnly value={prettyShortcut(draft[key])} onKeyDown={e => {
             if (e.key === 'Tab' || e.key === 'Escape') return;
             e.preventDefault();
             if (!/^[a-z0-9]$/i.test(e.key) && !/^F\d{1,2}$/.test(e.key)) return;
             const modifiers = [e.ctrlKey && 'Control', e.altKey && 'Alt', e.shiftKey && 'Shift', e.metaKey && 'Super'].filter(Boolean);
-            if (modifiers.length) setDraft({ ...draft, shortcut: [...modifiers, e.key.toUpperCase()].join('+') });
-          }} /></div>
+            if (modifiers.length) setDraft({ ...draft, [key]: [...modifiers, e.key.toUpperCase()].join('+') });
+          }} /></div>)}
+          <div className="setting-row"><label htmlFor="mini-hide">{t('迷你窗失焦后隐藏')}</label><input id="mini-hide" className="switch" type="checkbox" checked={draft.miniHideOnBlur} onChange={e => setDraft({ ...draft, miniHideOnBlur: e.target.checked })} /></div>
+          <div className="setting-row"><label htmlFor="mini-position">{t('记住迷你窗位置')}</label><input id="mini-position" className="switch" type="checkbox" checked={draft.miniRememberPosition} onChange={e => setDraft({ ...draft, miniRememberPosition: e.target.checked })} /></div>
           <div className="setting-row"><div><label>{t("系统托盘")}</label><p>{t("点击图标打开窗口，右键查看菜单。")}</p></div>{settings.traySettingsAvailable && <button className="tray-settings-button" onClick={() => void api.openTraySettings().catch(e => setError(errorText(e)))}>{t("系统设置")}<ExternalLink size={12} /></button>}</div>
           <details className="resource-details"><summary>{t("本地资源信息")}</summary><div className="resource-card"><Leaf size={19} /><div><strong>{t(status?.dictionaryName || '英语 ↔ 中文')}</strong><p>{t('{count} 词条', { count: status?.dictionaryCount?.toLocaleString(draft.locale) || '—' })}<br />{t("基础句子翻译：")} {settings.translationEngine === 'none' ? t("未开启") : 'Argos Translate'}</p></div></div></details>
         </>}

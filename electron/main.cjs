@@ -19,6 +19,11 @@ let window, tray, trayMenu, dictionary, translator, resources, hy, speech;
 let quitting = false;
 let settings;
 let shortcutError = '';
+let miniShortcutError = '';
+let miniMode = false;
+let miniPinned = false;
+let switchingMode = false;
+let lastMiniHeight = 0;
 let settingsPath;
 const supportsBackdrop = process.platform === 'win32' && Number(os.release().split('.')[2]) >= 22621;
 let appearance = { material: 'fallback', dark: false, reducedTransparency: false };
@@ -41,6 +46,7 @@ const root = app.isPackaged ? process.resourcesPath : path.join(__dirname, '..')
 const assets = app.isPackaged ? path.join(root, 'assets') : path.join(root, 'resources');
 
 function loadSettings() {
+  Object.assign(defaults, { miniShortcut: testing ? 'Control+Alt+Shift+F9' : 'Alt+Shift+D', miniHideOnBlur: true, miniRememberPosition: true, miniBounds: null });
   settingsPath = path.join(app.getPath('userData'), 'settings.json');
   try { settings = { ...defaults, ...JSON.parse(fs.readFileSync(settingsPath, 'utf8')) }; }
   catch {
@@ -63,7 +69,7 @@ function loadSettings() {
 function nativeText(message) { return settings.locale === 'en' ? english[message] || message : message; }
 
 function publicSettings() {
-  return { ...settings, shortcutError, startupAvailable: app.isPackaged && ['win32', 'darwin'].includes(process.platform), traySettingsAvailable: process.platform === 'win32' };
+  return { ...settings, shortcutError, miniShortcutError, startupAvailable: app.isPackaged && ['win32', 'darwin'].includes(process.platform), traySettingsAvailable: process.platform === 'win32' };
 }
 
 function updateTray() {
@@ -71,6 +77,7 @@ function updateTray() {
   tray.setToolTip(`BestDict · ${settings.shortcut.replace(/Control/g, 'Ctrl')}`);
   trayMenu = Menu.buildFromTemplate([
     { label: nativeText('打开 BestDict'), click: reveal },
+    { label: nativeText('迷你模式'), click: () => showMode(true) },
     { label: nativeText('设置'), click: () => { reveal(); window.webContents.send('window:open-settings'); } },
     { type: 'separator' }, { label: nativeText('退出'), click: () => app.quit() },
   ]);
@@ -99,19 +106,67 @@ function saveSettings(next) {
 
 function reveal() {
   if (!window) return;
+  showMode(false);
+}
+
+function modeState() { return { mini: miniMode, pinned: miniPinned }; }
+
+function setWindowBounds(bounds) {
+  window.setBounds(bounds);
+  // Compensate frameless-window rounding on fractional Windows display scales.
+  const actual = window.getBounds();
+  const dw = actual.width - bounds.width, dh = actual.height - bounds.height;
+  if ((dw || dh) && Math.abs(dw) <= 4 && Math.abs(dh) <= 4) {
+    window.setBounds({ ...bounds, width: bounds.width - dw, height: bounds.height - dh });
+  }
+}
+
+function miniBounds(height = 132) {
+  const saved = settings.miniRememberPosition && settings.miniBounds;
+  const valid = saved && ['x', 'y', 'width', 'height'].every(key => Number.isFinite(saved[key]));
+  const area = (valid ? screen.getDisplayMatching(saved) : screen.getDisplayNearestPoint(screen.getCursorScreenPoint())).workArea;
+  const width = Math.min(valid ? Math.max(280, Math.min(saved.width, 640)) : 420, area.width);
+  height = Math.min(Math.max(132, Math.round(height)), 520, area.height);
+  const x = valid ? saved.x : area.x + (area.width - width) / 2;
+  const y = valid ? saved.y : area.y + Math.min(120, area.height / 6);
+  return { width, height, x: Math.round(Math.max(area.x, Math.min(x, area.x + area.width - width))), y: Math.round(Math.max(area.y, Math.min(y, area.y + area.height - height))) };
+}
+
+function showMode(mini) {
+  if (!window) return;
+  switchingMode = true;
+  if (miniMode !== mini) {
+    rememberBounds();
+    if (window.isMaximized()) window.unmaximize();
+    miniMode = mini;
+    lastMiniHeight = 0;
+    window.setMinimumSize(mini ? 280 : 780, mini ? 100 : 580);
+    window.setResizable(true);
+    setWindowBounds(mini ? miniBounds() : windowBounds());
+  } else if (mini && !window.isVisible()) {
+    setWindowBounds(miniBounds(window.getBounds().height));
+  }
+  window.setAlwaysOnTop(mini && miniPinned);
+  window.webContents.send('window:mode', modeState());
   if (window.isMinimized()) window.restore();
   window.show();
   window.focus();
   window.webContents.send('window:focus-input');
+  switchingMode = false;
 }
 
 function toggle() {
-  if (window.isVisible() && window.isFocused()) hideToTray();
+  if (!miniMode && window.isVisible() && window.isFocused()) hideToTray();
   else reveal();
 }
 
 function registerShortcut(shortcut) {
   try { return globalShortcut.register(shortcut, toggle); } catch { return false; }
+}
+
+function toggleMini() {
+  if (miniMode && window.isVisible() && window.isFocused()) hideToTray();
+  else showMode(true);
 }
 
 function trusted(event) {
@@ -141,10 +196,28 @@ function windowBounds() {
 
 function rememberBounds() {
   if (!window || window.isMinimized() || window.isMaximized()) return;
-  try { saveSettings({ ...settings, bounds: window.getBounds() }); } catch (error) { console.error(error); }
+  if (miniMode && !settings.miniRememberPosition) return;
+  try { saveSettings({ ...settings, [miniMode ? 'miniBounds' : 'bounds']: window.getBounds() }); } catch (error) { console.error(error); }
 }
 
 function setupIPC() {
+  handle('window:mode', () => modeState());
+  handle('window:set-mode', mini => { if (typeof mini !== 'boolean') throw new Error('Invalid window mode'); showMode(mini); return modeState(); });
+  handle('window:pin', pinned => {
+    if (typeof pinned !== 'boolean') throw new Error('Invalid pin state');
+    miniPinned = pinned; window.setAlwaysOnTop(miniMode && pinned);
+    window.webContents.send('window:mode', modeState()); return modeState();
+  });
+  handle('window:mini-height', height => {
+    if (!miniMode || !Number.isFinite(height)) return;
+    const current = window.getBounds();
+    const area = screen.getDisplayMatching(current).workArea;
+    const nextHeight = Math.min(Math.max(132, Math.ceil(height * window.webContents.getZoomFactor())), 520, area.height);
+    if (nextHeight === lastMiniHeight) return;
+    lastMiniHeight = nextHeight;
+    setWindowBounds({ ...current, width: Math.min(current.width, area.width), height: nextHeight,
+      y: Math.max(area.y, Math.min(current.y, area.y + area.height - nextHeight)) });
+  });
   handle('window:appearance', () => appearance);
   handle('dictionary:lookup', async text => {
     validateText(text, 100);
@@ -209,14 +282,29 @@ function setupIPC() {
       next.translationEngine = changes.translationEngine;
       if (resources.argosStatus().ready || next.translationEngine !== settings.translationEngine) next.argosConfigured = true;
     }
-    if ('shortcut' in changes) {
-      if (typeof changes.shortcut !== 'string' || !/^(?:(?:Control|Command|Alt|Shift|Super)\+){1,3}(?:[A-Z0-9]|F(?:[1-9]|1[0-9]|2[0-4]))$/.test(changes.shortcut)) throw new Error('请使用例如 Control+Shift+D 的快捷键格式。');
-      if (changes.shortcut !== settings.shortcut || shortcutError) {
-        if (!registerShortcut(changes.shortcut)) throw new Error('这个快捷键已被其他程序占用，请换一个组合。');
-        if (changes.shortcut !== settings.shortcut) globalShortcut.unregister(settings.shortcut);
-        next.shortcut = changes.shortcut;
-        shortcutError = '';
+    for (const key of ['miniHideOnBlur', 'miniRememberPosition']) {
+      if (key in changes) {
+        if (typeof changes[key] !== 'boolean') throw new Error('Invalid mini setting');
+        next[key] = changes[key];
       }
+    }
+    if ('shortcut' in changes || 'miniShortcut' in changes) {
+      // Reserve new bindings before releasing either old binding, with rollback on conflict.
+      const acquired = [];
+      try {
+        for (const [key, callback] of [['shortcut', toggle], ['miniShortcut', toggleMini]]) {
+          const value = changes[key] ?? settings[key];
+          if (typeof value !== 'string' || !/^(?:(?:Control|Command|Alt|Shift|Super)\+){1,3}(?:[A-Z0-9]|F(?:[1-9]|1[0-9]|2[0-4]))$/.test(value)) throw new Error('请使用例如 Control+Shift+D 的快捷键格式。');
+          if (value === (changes[key === 'shortcut' ? 'miniShortcut' : 'shortcut'] ?? settings[key === 'shortcut' ? 'miniShortcut' : 'shortcut'])) throw new Error('两个快捷键不能相同。');
+          if (value !== settings[key] || (key === 'shortcut' ? shortcutError : miniShortcutError)) {
+            if (!globalShortcut.register(value, callback)) throw new Error('这个快捷键已被其他程序占用，请换一个组合。');
+            acquired.push([key, value]);
+          }
+          next[key] = value;
+        }
+      } catch (error) { for (const [, value] of acquired) globalShortcut.unregister(value); throw error; }
+      for (const [key, value] of acquired) if (settings[key] !== value) globalShortcut.unregister(settings[key]);
+      shortcutError = ''; miniShortcutError = '';
     }
     if (app.isPackaged && ['win32', 'darwin'].includes(process.platform) && !testing && next.startup !== settings.startup) {
       app.setLoginItemSettings({ openAtLogin: next.startup, path: process.execPath, name: 'BestDict', args: ['--hidden'] });
@@ -337,6 +425,7 @@ else {
     window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
     window.webContents.on('will-navigate', event => event.preventDefault());
     window.on('close', event => { if (!quitting) { event.preventDefault(); hideToTray(); } });
+    window.on('blur', () => { if (miniMode && !miniPinned && settings.miniHideOnBlur && !switchingMode) hideToTray(); });
     let boundsTimer;
     for (const event of ['resize', 'move']) window.on(event, () => { clearTimeout(boundsTimer); boundsTimer = setTimeout(rememberBounds, 500); });
     setupIPC();
@@ -347,6 +436,8 @@ else {
     tray.on('double-click', reveal);
     tray.on('balloon-click', reveal);
     if (!registerShortcut(settings.shortcut)) shortcutError = `${settings.shortcut} 已被占用，请在设置中更换。`;
+    try { if (!globalShortcut.register(settings.miniShortcut, toggleMini)) miniShortcutError = `${settings.miniShortcut} 已被占用，请在设置中更换。`; }
+    catch { miniShortcutError = `${settings.miniShortcut} 已被占用，请在设置中更换。`; }
     if (app.isPackaged && !testing && ['win32', 'darwin'].includes(process.platform)) {
       if (process.platform === 'win32') app.setLoginItemSettings({ openAtLogin: false, name: 'BestDic' });
       app.setLoginItemSettings({ openAtLogin: settings.startup, path: process.execPath, name: 'BestDict', args: ['--hidden'] });
@@ -363,5 +454,6 @@ app.on('before-quit', () => { quitting = true; rememberBounds(); dictionary?.sto
 app.on('will-quit', () => { globalShortcut.unregisterAll(); tray?.destroy(); });
 // Native tray interaction is exercised by Playwright in an isolated test process.
 if (testing) globalThis.__bestdictNative = { getTray: () => tray, getTrayMenu: () => trayMenu,
+  toggleMini, toggleMain: toggle,
   getServices: () => ({ resources, translator, hy, speech }),
   readSettings: () => JSON.parse(fs.readFileSync(settingsPath, 'utf8')) };
