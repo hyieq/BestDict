@@ -41,7 +41,7 @@ test('automatic routing uses Kokoro for Chinese/English and system speech for ot
   await assert.rejects(service().synthesize('hello', 'en', { ...defaultSpeech, engine: 'kokoro' }), /请先/);
   s.stop();
 });
-test('Windows system speech produces a nonempty RIFF/WAVE without playing aloud', { skip: process.platform !== 'win32' }, async () => {
+test('native system speech produces a nonempty RIFF/WAVE without playing aloud', { skip: !['win32', 'darwin'].includes(process.platform) }, async () => {
   const s = service();
   try {
     const voices = await s.voices();

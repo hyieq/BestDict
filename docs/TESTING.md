@@ -21,7 +21,8 @@ BESTDICT_TEST_EXE="$PWD/release/mac-arm64/BestDict.app/Contents/MacOS/BestDict" 
 ```
 
 CI 将 `.app` 复制到包含空格的独立目录后，校验签名、包内符号链接、模型权重排除、
-Python 原生模块导入、77 万词条查询及 llama-server 启动，再执行打包后桌面、
+Python 原生模块导入、77 万词条查询及 llama-server 启动；资源测试也验证系统语音生成 WAV，
+不播放声音。随后执行打包后桌面、
 查询模式、AI 样式/菜单、发音缓存和迷你模式交互测试。测试使用 BESTDICT_TEST 隔离配置。
 自动测试不下载真实翻译/语音模型，不能代替真实推理、Gatekeeper 下载隔离、
 登录自启动、系统快捷键权限和硬件上的体验验收。Mac 不运行 Windows 截图测试。
