@@ -14,11 +14,12 @@ Keep the public README focused on usage; retain publishing instructions in this 
 
 ## Release procedure
 
-macOS previews use `.github/workflows/macos.yml` on native Apple Silicon runners.
-It uploads ad-hoc signed DMG/ZIP artifacts and checksums, without creating a release.
-Use a `codex/macos-*` branch or workflow_dispatch to exercise this workflow. Preserve
-Windows release behavior. Do not describe preview artifacts as notarized or validated
-on a physical Mac; the preview currently excludes Windows-only screenshot translation.
+macOS builds use `.github/workflows/macos.yml` on native Apple Silicon and Intel runners.
+It supports workflow_call for releases and standalone DMG/ZIP preview artifacts.
+The Release workflow runs Windows x64 and both Mac architectures, then publishes
+all three installers together only after every build and packaged test succeeds.
+Mac packages are ad-hoc signed and exclude Windows-only screenshot translation;
+do not describe them as notarized or validated on a physical Mac.
 
 Publish only when the user asks to release, or asks to push and build a new version.
 Use a new version for changed application behavior. Synchronize `package.json`, both root
@@ -29,10 +30,10 @@ match `v` + the package version. Commit the completed changes, create an annotat
 tag, and push the branch and tag (prefer an atomic push). Never overwrite a published tag.
 Check the remote branch/tag state before pushing and resolve any divergence normally.
 
-The Release workflow prepares Windows x64 runtimes and the offline dictionary, tests
+The Release workflow prepares platform-specific runtimes and the offline dictionary, tests
 resources and the speech installer, builds the installer, and tests the packaged desktop,
 glass UI, query modes, AI menus/styles, and speech/cache interactions. It then publishes
-the installer and SHA-256 file as the latest GitHub Release. Optional model weights and
+the Windows installer, Intel/Apple Silicon DMGs and their SHA-256 files as the latest GitHub Release. Optional model weights and
 user audio caches must not be bundled. Local builds use `npm.cmd run package`; an isolated
 output directory can be set with `BESTDICT_RELEASE_DIR` (for example `release/v<version>`).
 

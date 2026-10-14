@@ -1,4 +1,4 @@
-"""Prepare a relocatable Apple Silicon Python; never use the system Python at runtime."""
+"""Prepare native relocatable macOS Python; never use system Python at runtime."""
 import platform
 import shutil
 import subprocess
@@ -9,11 +9,12 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def build_runtime():
-    if sys.platform != 'darwin' or platform.machine() != 'arm64':
-        raise RuntimeError('The macOS preview currently requires an Apple Silicon runner.')
+    architecture = {'arm64': 'aarch64', 'x86_64': 'x86_64'}.get(platform.machine())
+    if sys.platform != 'darwin' or not architecture:
+        raise RuntimeError('macOS runtime preparation requires a native Intel or Apple Silicon runner.')
     managed = ROOT / '.cache' / 'macos-python'
     subprocess.run(['uv', 'python', 'install', '3.12.10', '--install-dir', str(managed), '--no-bin'], check=True)
-    candidates = list(managed.glob('cpython-3.12.10-macos-aarch64-*'))
+    candidates = list(managed.glob(f'cpython-3.12.10-macos-{architecture}-*'))
     if len(candidates) != 1:
         raise RuntimeError(f'Expected one standalone Python installation in {managed}')
     target = ROOT / 'runtime' / 'python'

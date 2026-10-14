@@ -33,7 +33,7 @@ try {
       if (state.mode === 'offline') throw new TypeError('fixture offline');
       const version = state.mode === 'latest' ? '0.0.1' : '1.0.0';
       const data = { tag_name: `v${version}`, draft: false, prerelease: false,
-        assets: state.mode === 'missing' ? [] : [`BestDict-${version}-x64-Setup.exe`, `BestDict-${version}-macOS-arm64.dmg`].map(name => ({ name, state: 'uploaded', size: 123 })) };
+        assets: state.mode === 'missing' ? [] : [`BestDict-${version}-x64-Setup.exe`, `BestDict-${version}-macOS-arm64.dmg`, `BestDict-${version}-macOS-x64.dmg`].map(name => ({ name, state: 'uploaded', size: 123 })) };
       if (state.mode !== 'available') return new Response(JSON.stringify(data));
       return new Promise(resolve => { state.finish = () => resolve(new Response(JSON.stringify(data))); });
     };
@@ -108,7 +108,7 @@ try {
   await updateResult.getByRole('button', { name: 'Download update', exact: true }).click();
   await updateResult.getByRole('button', { name: "What's new", exact: true }).click();
   assert.deepEqual(await desktop.evaluate(() => globalThis.__updateTest.opened), [
-    `https://github.com/hyieq/BestDict/releases/download/v1.0.0/BestDict-1.0.0-${process.platform === 'darwin' ? 'macOS-arm64.dmg' : 'x64-Setup.exe'}`,
+    `https://github.com/hyieq/BestDict/releases/download/v1.0.0/BestDict-1.0.0-${process.platform === 'darwin' ? `macOS-${process.arch}.dmg` : 'x64-Setup.exe'}`,
     'https://github.com/hyieq/BestDict/releases/tag/v1.0.0',
   ]);
   await checkUpdate.click();

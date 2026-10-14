@@ -1,6 +1,11 @@
 name: macOS Preview
 
 on:
+  workflow_call:
+    inputs:
+      release-build:
+        type: boolean
+        default: false
   workflow_dispatch:
   push:
     branches: [main, 'codex/macos-*']
@@ -16,8 +21,19 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  apple-silicon:
-    runs-on: macos-15
+  macos:
+    name: macOS ${{ matrix.arch }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: arm64
+            runner: macos-15
+            bundle: mac-arm64
+          - arch: x64
+            runner: macos-15-intel
+            bundle: mac
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
     env:
       PYTHONUTF8: '1'
@@ -26,7 +42,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+          architecture: ${{ matrix.arch }}
           cache: npm
+      - name: Verify architecture and release version
+        run: |
+          node -e "const p=require('./package.json'); if(process.arch !== '${{ matrix.arch }}') throw new Error('Runner architecture mismatch'); if('${{ inputs.release-build }}' === 'true' && process.env.GITHUB_REF_NAME !== 'v'+p.version) throw new Error('Release tag must match package version');"
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
@@ -50,7 +70,7 @@ jobs:
       - name: Verify relocated application and native dependencies
         run: |
           mkdir -p "$RUNNER_TEMP/BestDict relocation"
-          ditto release/mac-arm64/BestDict.app "$RUNNER_TEMP/BestDict relocation/BestDict.app"
+          ditto release/${{ matrix.bundle }}/BestDict.app "$RUNNER_TEMP/BestDict relocation/BestDict.app"
           node scripts/ci-command.mjs bundle python scripts/verify_macos_bundle.py "$RUNNER_TEMP/BestDict relocation/BestDict.app"
           echo "BESTDICT_TEST_EXE=$RUNNER_TEMP/BestDict relocation/BestDict.app/Contents/MacOS/BestDict" >> "$GITHUB_ENV"
       - name: Test packaged desktop
@@ -69,21 +89,34 @@ jobs:
       - name: Checksums
         run: |
           cd release
-          shasum -a 256 BestDict-*-macOS-arm64.dmg BestDict-*-macOS-arm64.zip > SHA256SUMS.txt
+          for file in BestDict-*-macOS-${{ matrix.arch }}.dmg BestDict-*-macOS-${{ matrix.arch }}.zip; do
+            shasum -a 256 "$file" > "$file.sha256"
+          done
+          cat *.sha256 > SHA256SUMS.txt
       - name: Save preview installers
+        if: ${{ !inputs.release-build }}
         uses: actions/upload-artifact@v4
         with:
-          name: BestDict-macOS-arm64-${{ github.run_number }}
+          name: BestDict-macOS-${{ matrix.arch }}-${{ github.run_number }}
           path: |
-            release/BestDict-*-macOS-arm64.dmg
-            release/BestDict-*-macOS-arm64.zip
+            release/BestDict-*-macOS-${{ matrix.arch }}.dmg
+            release/BestDict-*-macOS-${{ matrix.arch }}.zip
             release/SHA256SUMS.txt
           if-no-files-found: error
           retention-days: 30
+      - name: Save release installer
+        if: ${{ inputs.release-build }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: BestDict-${{ github.ref_name }}-macos-${{ matrix.arch }}
+          path: |
+            release/BestDict-*-macOS-${{ matrix.arch }}.dmg
+            release/BestDict-*-macOS-${{ matrix.arch }}.dmg.sha256
+          if-no-files-found: error
       - name: Save test evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: macOS-test-results-${{ github.run_number }}
+          name: macOS-${{ matrix.arch }}-test-results-${{ github.run_number }}
           path: test-results/
           if-no-files-found: ignore

@@ -43,6 +43,8 @@ test('download links select the correct architecture and stay in the fixed repos
     ['win32', 'x64', ['BestDict-0.4.10-x64-Setup.exe', 'BestDict-0.4.10-macOS-arm64.dmg'], 'BestDict-0.4.10-x64-Setup.exe'],
     ['darwin', 'arm64', ['BestDict-0.4.10-x64-Setup.exe', 'BestDict-0.4.10-macOS-arm64.zip', 'BestDict-0.4.10-macOS-arm64.dmg'], 'BestDict-0.4.10-macOS-arm64.dmg'],
     ['darwin', 'arm64', ['BestDict-0.4.10-macOS-arm64.zip'], 'BestDict-0.4.10-macOS-arm64.zip'],
+    ['darwin', 'x64', ['BestDict-0.4.10-macOS-arm64.dmg', 'BestDict-0.4.10-macOS-x64.dmg'], 'BestDict-0.4.10-macOS-x64.dmg'],
+    ['darwin', 'x64', ['BestDict-0.4.10-macOS-x64.zip'], 'BestDict-0.4.10-macOS-x64.zip'],
   ]) {
     const opened = [];
     const updates = service({ platform, arch, fetchRelease: async () => response(release('0.4.10', names)), openExternal: async url => opened.push(url) });

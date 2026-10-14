@@ -5,7 +5,7 @@
   <p>A quiet, offline-first desktop dictionary & translator.</p>
   <p>
     <img src="https://img.shields.io/badge/version-0.4.17-0067b8" alt="Version 0.4.17" />
-    <img src="https://img.shields.io/badge/platform-Windows_x64-0078d4" alt="Windows x64" />
+    <img src="https://img.shields.io/badge/platform-Windows_·_macOS-0078d4" alt="Windows and macOS" />
     <img src="https://img.shields.io/badge/Electron-React_·_TypeScript-47848f" alt="Electron, React and TypeScript" />
     <a href="LICENSE"><img src="https://img.shields.io/badge/code_license-MIT-3d8558" alt="Code license: MIT" /></a>
   </p>
@@ -14,7 +14,7 @@
 
 ---
 
-BestDict 是一款 Windows x64 离线词典与翻译软件。按下 `Ctrl + Shift + D` 随时查词，关闭窗口后驻留托盘。无需账号、API Key 或订阅。
+BestDict 是一款 Windows x64 / macOS 离线词典与翻译软件。按下 `Ctrl + Shift + D` 随时查词，关闭窗口后驻留托盘。无需账号、API Key 或订阅。
 
 <a id="features"></a>
 ## 功能
@@ -43,7 +43,7 @@ BestDict 是一款 Windows x64 离线词典与翻译软件。按下 `Ctrl + Shif
 <a id="quick-start"></a>
 ## 开始使用
 
-1. 从 [Releases](https://github.com/hyieq/BestDict/releases/latest) 下载 Windows x64 安装包并运行。
+1. 从 [Releases](https://github.com/hyieq/BestDict/releases/latest) 下载对应系统的安装包：Windows 使用 `Setup.exe`；Intel Mac 使用 `macOS-x64.dmg`；M 系列 Mac 使用 `macOS-arm64.dmg`，打开后将 BestDict 拖入「应用程序」。
 2. 输入单词即可查词；`Ctrl + Shift + D` 唤起窗口，`Esc` 隐藏到托盘。
 3. 需要整句翻译时，在 **设置 → 翻译引擎** 下载或导入模型。
 
@@ -51,9 +51,7 @@ BestDict 是一款 Windows x64 离线词典与翻译软件。按下 `Ctrl + Shif
 
 在设置页点击「检查更新」可查询 GitHub 正式发布版本，并下载对应系统的安装包。检查由手动触发，下载后自行运行安装包。
 
-macOS Apple Silicon（M 系列）测试包通过 [macOS Preview 构建](https://github.com/hyieq/BestDict/actions/workflows/macos.yml) 提供：登录 GitHub，打开成功的构建，在 Artifacts 下载 `BestDict-macOS-arm64-…`，解压后打开 DMG，将 BestDict 拖入「应用程序」。下载内附 ZIP 和 SHA-256 校验文件，构建产物保留 30 天。Intel Mac 暂不支持。
-
-Mac 测试包尚未经过 Apple Developer ID 签名和公证，首次打开可能需要到「系统设置 → 隐私与安全性」允许打开。截图翻译目前仅支持 Windows；Mac 的系统权限、快捷键及实际发音体验仍需真机验收。
+Mac 安装包尚未经过 Apple Developer ID 签名和公证，首次打开可能需要到「系统设置 → 隐私与安全性」允许打开。截图翻译目前仅支持 Windows；Mac 的系统权限、快捷键及实际发音体验仍需真机验收。
 
 | 引擎 | 下载大小 | 用途 |
 | --- | --- | --- |

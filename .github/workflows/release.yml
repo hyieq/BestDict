@@ -18,8 +18,6 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/')
     runs-on: windows-2022
     timeout-minutes: 45
-    permissions:
-      contents: write
     defaults:
       run:
         shell: pwsh
@@ -105,47 +103,24 @@ jobs:
       - name: Test packaged glass UI, query mode and AI menus
         run: |
           $env:BESTDICT_TEST_EXE = Join-Path $PWD 'release/win-unpacked/BestDict.exe'
-          npm run test:glass
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          npm run test:query-mode
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          npm run test:ai-styles
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          npm run test:ai-menu
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          npm run test:speech
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          npm run test:settings
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          npm run test:mini
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          npm run test:capture
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          foreach ($test in @('test:glass', 'test:query-mode', 'test:ai-styles', 'test:ai-menu', 'test:speech', 'test:settings', 'test:mini', 'test:capture')) {
+            $log = 'release-' + $test.Replace(':', '-') + '.log'
+            npm run $test 2>&1 | Tee-Object -FilePath $log
+            $testExit = $LASTEXITCODE
+            if ($testExit -ne 0) {
+              $tail = (Get-Content $log -Tail 80) -join "`n"
+              $message = $tail.Replace('%', '%25').Replace("`r", '%0D').Replace("`n", '%0A')
+              Write-Output "::error title=$test failed::$message"
+              exit $testExit
+            }
+          }
 
-      - name: Prepare checksum and release notes
+      - name: Prepare checksum
         run: |
           $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
           $installer = Get-Item "release/BestDict-$version-x64-Setup.exe"
           $hash = (Get-FileHash $installer.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
           "$hash  $($installer.Name)" | Set-Content "$($installer.FullName).sha256" -Encoding utf8
-          $changelog = Get-Content CHANGELOG.md -Raw
-          $pattern = '(?ms)^## ' + [regex]::Escape($version) + '\r?\n(.*?)(?=^## |\z)'
-          $changes = [regex]::Match($changelog, $pattern)
-          if (-not $changes.Success) { throw "Missing CHANGELOG entry for $version." }
-          $notes = @(
-            "BestDict $version · Windows x64",
-            '',
-            '下载下方 Setup.exe 并运行安装。内置 770,611 条 ECDICT 词条和必要运行时，无需另装 Python。',
-            '',
-            '默认仅查词；Argos / HY 整句翻译模型及扩展词库需在设置中按需下载或导入。',
-            '',
-            '## 更新内容',
-            '',
-            $changes.Groups[1].Value.Trim(),
-            '',
-            '安装包经过离线资源测试及打包后的桌面测试，并提供 SHA-256 校验文件。'
-          )
-          $notes -join "`n" | Set-Content release/release-notes.md -Encoding utf8
 
       - name: Save installer artifacts
         uses: actions/upload-artifact@v4
@@ -156,33 +131,51 @@ jobs:
             release/*.sha256
           if-no-files-found: error
 
-      - name: Publish GitHub Release
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-        run: |
-          $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
-          $installer = (Get-Item "release/BestDict-$version-x64-Setup.exe").FullName
-          $checksum = "$installer.sha256"
-          $existing = gh release view $env:RELEASE_TAG --json isDraft 2>$null
-          if ($LASTEXITCODE -eq 0) {
-            if (-not ($existing | ConvertFrom-Json).isDraft) {
-              throw "Release $env:RELEASE_TAG is already published. Use a new version tag."
-            }
-            gh release upload $env:RELEASE_TAG $installer $checksum --clobber
-          } else {
-            gh release create $env:RELEASE_TAG $installer $checksum --verify-tag --draft --title "BestDict $env:RELEASE_TAG" --notes-file release/release-notes.md
-          }
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          gh release edit $env:RELEASE_TAG --draft=false --latest --title "BestDict $env:RELEASE_TAG" --notes-file release/release-notes.md
-
       - name: Save desktop test evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: BestDict-${{ github.ref_name }}-test-results
+          name: windows-test-results-${{ github.ref_name }}
           path: |
             test-results/
-            release-build.log
-            release-desktop.log
+            release-*.log
           if-no-files-found: ignore
+
+  macos:
+    if: startsWith(github.ref, 'refs/tags/')
+    uses: ./.github/workflows/macos.yml
+    with:
+      release-build: true
+
+  publish:
+    needs: [windows, macos]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    env:
+      RELEASE_TAG: ${{ github.ref_name }}
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: BestDict-${{ github.ref_name }}-*
+          merge-multiple: true
+          path: release
+      - name: Verify all three installers and prepare release notes
+        run: node scripts/prepare_release.mjs
+      - name: Publish complete release
+        run: |
+          files=(release/BestDict-*-Setup.exe release/BestDict-*-macOS-*.dmg release/*.sha256)
+          if gh release view "$RELEASE_TAG" --json isDraft > existing-release.json 2>/dev/null; then
+            node -e "if(!require('./existing-release.json').isDraft) throw new Error('Release is already published; use a new version tag');"
+            gh release upload "$RELEASE_TAG" "${files[@]}" --clobber
+          else
+            gh release create "$RELEASE_TAG" "${files[@]}" --verify-tag --draft --title "BestDict $RELEASE_TAG" --notes-file release/release-notes.md
+          fi
+          gh release edit "$RELEASE_TAG" --draft=false --latest --title "BestDict $RELEASE_TAG" --notes-file release/release-notes.md
+          gh release view "$RELEASE_TAG" --json tagName,isDraft,isPrerelease,assets,url

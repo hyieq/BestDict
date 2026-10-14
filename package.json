@@ -11,7 +11,7 @@
     "build": "tsc --noEmit && vite build",
     "start": "electron .",
     "test": "node --test tests/*.test.cjs",
-    "test:unit": "node --test tests/resources.test.cjs tests/hy.test.cjs tests/query-policy.test.cjs tests/updates.test.cjs",
+    "test:unit": "node --test tests/resources.test.cjs tests/hy.test.cjs tests/query-policy.test.cjs tests/updates.test.cjs tests/release.test.cjs",
     "test:desktop": "node scripts/smoke.mjs",
     "test:glass": "node scripts/glass-ui-smoke.mjs",
     "test:mini": "node scripts/mini-ui-smoke.mjs",
@@ -116,18 +116,8 @@
     "afterPack": "scripts/sign-macos-runtime.cjs",
     "mac": {
       "target": [
-        {
-          "target": "dmg",
-          "arch": [
-            "arm64"
-          ]
-        },
-        {
-          "target": "zip",
-          "arch": [
-            "arm64"
-          ]
-        }
+        "dmg",
+        "zip"
       ],
       "icon": "resources/branding/app-icon-source.png",
       "category": "public.app-category.reference",

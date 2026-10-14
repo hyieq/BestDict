@@ -2,7 +2,11 @@
 
 ## 0.4.17
 
-- 设置页新增手动检查更新，查询 GitHub 最新正式 Release，并按 Windows x64 / macOS arm64 匹配安装包。
+- Windows x64、macOS Intel 和 M 系列安装包统一发布到 GitHub Release，分别构建、测试并提供 SHA-256 校验。
+- Intel Mac 使用独立的 Python / 推理运行时；Mac 安装包采用临时签名，截图翻译仍仅支持 Windows。
+- 主界面翻译提示可永久关闭，设置页采用紧凑布局，使用说明默认折叠。
+
+- 设置页新增手动检查更新，查询 GitHub 最新正式 Release，并按 Windows x64 / macOS Intel / macOS Apple Silicon 匹配安装包。
 - 支持查看更新内容与浏览器下载安装包，提供网络失败、超时、限流及缺少对应平台安装包的提示。
 - 合并并发检查并短时缓存结果，启动和打开设置不会自动检查。
 

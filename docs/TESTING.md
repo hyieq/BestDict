@@ -18,12 +18,13 @@
 取消正在执行的 AI 翻译，或在切换引擎后重新显示提示。
 仅设置 `BESTDICT_UPDATE_PREVIEWS=1` 时，设置测试会用真实离线查词界面更新 README 主界面预览。
 
-## macOS Apple Silicon 预览包
+## macOS Intel / Apple Silicon 打包
 
-`.github/workflows/macos.yml` 在 Apple Silicon `macos-15` 上运行，可手动触发，
+`.github/workflows/macos.yml` 在 Apple Silicon `macos-15` 和 Intel `macos-15-intel` 上分别运行，可手动触发，
 也会在 main / codex/macos-* 分支代码推送和 PR 时运行。流程准备独立的
 Python 3.12.10、ctranslate2、sentencepiece、sherpa-onnx 和固定版本 llama.cpp，
-执行资源测试并生成临时签名的 DMG / ZIP；不创建 tag，也不发布 GitHub Release。
+执行资源测试并生成临时签名的 DMG / ZIP。独立预览构建不创建 tag 或发布 Release；
+Release 工作流通过 workflow_call 复用两个架构的构建，全部平台通过后统一发布三个安装包。
 
 在 Mac 上本地复现（需要 Node 22、Python 3.12、uv）：
 
@@ -48,7 +49,9 @@ macOS CI 的虚拟声卡播放速度可能慢于真实时间，发音测试最�
 登录自启动、系统快捷键权限和硬件上的体验验收。Mac 不运行 Windows 截图测试。
 
 成功时上传安装包、SHA256SUMS.txt，失败时仍上传已有测试证据。构建产物保留 30 天。
-当前仅为 Apple Silicon 临时签名测试包；正式公开分发前需接入 Developer ID 签名和公证。
+Intel 的解包目录为 `release/mac`，Apple Silicon 为 `release/mac-arm64`。
+Mac 使用临时签名，未接入 Developer ID 签名和公证，仍需真机体验验收。
+`node --test tests/release.test.cjs` 验证三个安装包缺失、校验不符和错误版本会阻止发布。
 
 ## 截图翻译
 

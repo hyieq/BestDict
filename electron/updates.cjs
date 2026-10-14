@@ -49,7 +49,7 @@ class UpdateService {
       const tag = encodeURIComponent(release.tag_name);
       const releaseUrl = `https://github.com/${REPOSITORY}/releases/tag/${tag}`;
       const names = this.platform === 'win32' && this.arch === 'x64' ? [`BestDict-${version}-x64-Setup.exe`] :
-        this.platform === 'darwin' && this.arch === 'arm64' ? [`BestDict-${version}-macOS-arm64.dmg`, `BestDict-${version}-macOS-arm64.zip`] : [];
+        this.platform === 'darwin' && ['arm64', 'x64'].includes(this.arch) ? [`BestDict-${version}-macOS-${this.arch}.dmg`, `BestDict-${version}-macOS-${this.arch}.zip`] : [];
       const asset = names.map(name => release.assets.find(item => item && item.name === name && item.state === 'uploaded' && Number.isSafeInteger(item.size) && item.size > 0)).find(Boolean);
       // Build links from the fixed repository and expected asset names. Never
       // pass an arbitrary URL from the renderer or release JSON to the shell.
