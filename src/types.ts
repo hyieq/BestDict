@@ -32,6 +32,17 @@ export interface ResourceCatalog {
   hy: { ready: boolean; bytes: number; name: string; license: string; filename: string };
   progress: ResourceProgress | null;
 }
+export interface DownloadOptions { source?: string; urls?: string[] }
+export interface DownloadEntry {
+  id: string; title: string; bytes: number; ready: boolean; count?: number; supported?: boolean;
+  license: string; homepage: string; files: string[]; partialBytes: number;
+  sources: { id: string; name: string; urls: string[] }[];
+}
+export interface DownloadJob {
+  id: string; state: 'queued' | 'running' | 'paused' | 'error' | 'complete';
+  options: DownloadOptions; phase?: string; message?: string; received?: number; total?: number;
+}
+export interface DownloadCatalog { entries: DownloadEntry[]; jobs: DownloadJob[] }
 export interface DesktopAPI {
   startCapture(): Promise<void>;
   getOCR(): Promise<OCRStatus>;
@@ -66,6 +77,11 @@ export interface DesktopAPI {
   getSettings(): Promise<Settings>;
   setSettings(settings: Partial<Settings>): Promise<Settings>;
   getResources(): Promise<ResourceCatalog>;
+  getDownloads(): Promise<DownloadCatalog>;
+  queueDownloads(ids: string[], options?: Record<string, DownloadOptions>): Promise<DownloadJob[]>;
+  pauseDownload(id: string): Promise<void>;
+  clearDownloadCache(id: string): Promise<boolean>;
+  removeResource(id: string): Promise<boolean>;
   downloadResource(id: string): Promise<unknown>;
   importResource(id: string): Promise<unknown>;
   copyDownloadLinks(id: 'argos' | 'hy-mt2' | 'kokoro'): Promise<number>;

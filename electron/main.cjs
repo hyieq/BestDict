@@ -5,6 +5,8 @@ const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 const { WorkerClient } = require('./worker.cjs');
 const { ResourceManager } = require('./resources.cjs');
+const { ResourceQueue } = require('./resource-queue.cjs');
+const { resolveSources } = require('./resources.cjs');
 const { SpeechService } = require('./speech.cjs');
 const { SpeechSessions } = require('./speech-stream.cjs');
 const { defaultSpeech, validateSpeech } = require('./speech-options.cjs');
@@ -21,6 +23,7 @@ const testing = process.env.BESTDICT_TEST === '1';
 if (testing) app.setPath('userData', path.join(app.getPath('temp'), `bestdict-test-${process.pid}`));
 let window, tray, trayMenu, dictionary, translator, resources, hy, speech;
 let speechSessions;
+let downloads;
 let quitting = false;
 let settings;
 let shortcutError = '';
@@ -239,7 +242,7 @@ function rememberBounds() {
 
 function setupIPC() {
   handle('ocr:status', () => ocr.status());
-  handle('ocr:install', () => ocr.install());
+  handle('ocr:install', () => { if (downloads.active) throw new Error('请先暂停下载或安装。'); return ocr.install(); });
   handle('ocr:cancel', () => ocr.cancelDownload());
   handle('ocr:uninstall', () => { capture.cancelWork(); return ocr.uninstall(); });
   handle('screenshot:start', () => capture.start());
@@ -391,6 +394,61 @@ function setupIPC() {
   });
   handle('speech:cancel', requestId => speechSessions.cancel(requestId, window.webContents));
   handle('resources:list', () => ({ dictionaries: resources.list(), argos: resources.argosStatus(), hy: resources.hyStatus(), kokoro: resources.kokoroStatus(), progress: resources.latestProgress }));
+  handle('downloads:list', () => {
+    const dictionaries = resources.list().filter(item => !item.builtIn);
+    const entries = [
+      { id: 'multi-dictionaries', title: '多语言词库', ready: dictionaries.every(item => item.installed), bytes: resources.catalog.source.downloadBytesEstimate,
+        count: dictionaries.filter(item => item.installed).length, license: resources.catalog.source.license, homepage: resources.catalog.source.homepage },
+      { id: 'argos', title: '基础句子翻译', ...resources.argosStatus() },
+      { id: 'hy-mt2', title: '混元 AI 翻译', ...resources.hyStatus() },
+      { id: 'kokoro', title: '中英离线发音', ...resources.kokoroStatus() },
+      { id: 'ocr', title: '截图识别模型', ...ocr.status(), license: ocr.spec.license, homepage: ocr.spec.homepage },
+    ].map(entry => {
+      const service = entry.id === 'ocr' ? ocr : resources;
+      const files = entry.id === 'ocr' ? service.filesFor() : service.filesFor(entry.id);
+      return { ...entry, sources: entry.id === 'ocr' ? ocr.sourcesFor() : resources.sourcesFor(entry.id),
+        files: files.map(file => file.filename), partialBytes: entry.id === 'ocr' ? ocr.pendingBytes() : resources.pendingBytes(entry.id) };
+    });
+    return { entries, jobs: downloads.snapshot() };
+  });
+  handle('downloads:enqueue', ({ ids, options = {} }) => {
+    if (!Array.isArray(ids) || !options || typeof options !== 'object') throw new Error('下载资源无效。');
+    if ((resources.activeJob || ocr.controller) && !downloads.active) throw new Error('请等待当前安装完成。');
+    for (const id of ids) {
+      if (id === 'ocr') {
+        if (!ocr.status().supported) throw new Error('截图翻译目前仅支持 Windows。');
+        resolveSources(ocr.filesFor(), ocr.sourcesFor(), options[id]);
+      } else resolveSources(resources.filesFor(id), resources.sourcesFor(id), options[id]);
+    }
+    return downloads.enqueue(ids, options);
+  });
+  handle('downloads:pause', id => downloads.pause(id));
+  handle('downloads:clear-cache', async id => {
+    if (downloads.active || resources.activeJob || ocr.controller) throw new Error('请先暂停下载或安装。');
+    if (id === 'ocr') {
+      for (const file of ocr.filesFor()) for (const suffix of ['.part', '.part.json']) await fs.promises.rm(file.target + suffix, { force: true });
+    } else await resources.clearCache(id);
+    delete downloads.jobs[id]; downloads.save();
+    return true;
+  });
+  handle('downloads:remove', async id => {
+    if (downloads.active || resources.activeJob || ocr.controller) throw new Error('请先暂停下载或安装。');
+    if (id === 'ocr') { capture.cancelWork(); await ocr.uninstall(); }
+    else {
+      if (id === 'hy-mt2') hy.stop();
+      if (id === 'argos') { translator.stop(); saveSettings({ ...settings, translationEngine: 'none', argosConfigured: true }); }
+      if (id === 'kokoro') { await speech.suspend(); speechSessions.current = null; stopSpeechPlayers();
+        if (settings.speech.engine === 'kokoro') saveSettings({ ...settings, speech: { ...settings.speech, engine: 'auto' } }); }
+      if (id === 'multi-dictionaries') {
+        await dictionary.stop();
+        if (settings.dictionaryId !== 'ecdict') saveSettings({ ...settings, dictionaryId: 'ecdict' });
+      }
+      try { await resources.uninstall(id); }
+      finally { if (id === 'kokoro') { speech.suspended = false; updateSpeechStandby(); } }
+    }
+    delete downloads.jobs[id]; downloads.save();
+    return true;
+  });
   async function installResource(id, source) {
     if (id === 'hy-mt2') hy.stop();
     if (id === 'argos') translator.stop();
@@ -399,14 +457,14 @@ function setupIPC() {
       await speech.suspend(); speechSessions.current = null; stopSpeechPlayers();
     }
     let result;
-    try { result = await resources.install(id, source); }
+    try { result = await resources.install(id, source, { replace: id === 'multi-dictionaries' && !!source }); }
     finally { if (id === 'kokoro') { speech.suspended = false; updateSpeechStandby(); } }
     if (id === 'argos' && result && resources.argosStatus().ready && !settings.argosConfigured) {
       saveSettings({ ...settings, translationEngine: 'argos', argosConfigured: true });
     }
     return result;
   }
-  handle('resources:download', id => installResource(id));
+  handle('resources:download', id => { if (downloads.active) throw new Error('请先暂停下载或安装。'); return installResource(id); });
   handle('resources:cancel', () => resources.cancel());
   handle('resources:copy-links', id => {
     const links = resources.downloadLinks(id);
@@ -414,18 +472,20 @@ function setupIPC() {
     return links.length;
   });
   handle('resources:import', async id => {
-    if (!['argos', 'hy-mt2', 'kokoro'].includes(id) && !resources.catalog.dictionaries.some(item => item.id === id)) throw new Error('未知资源。');
+    if (downloads.active) throw new Error('请先暂停下载或安装。');
+    if (!['argos', 'hy-mt2', 'kokoro', 'multi-dictionaries', 'ocr'].includes(id) && !resources.catalog.dictionaries.some(item => item.id === id)) throw new Error('未知资源。');
     const isArgos = id === 'argos';
     const selected = await dialog.showOpenDialog(window, { title: nativeText(isArgos ? '同时选择中英两个 Argos 模型包' : id === 'kokoro' ? '导入官方 Kokoro INT8 中英语音包' : id === 'hy-mt2' ? '导入官方 Hy-MT2 Q4_K_M 模型' : '导入中文版 Wiktextract 数据'),
-      properties: isArgos ? ['openFile', 'multiSelections'] : ['openFile'],
-      filters: isArgos ? [{ name: 'Argos model', extensions: ['argosmodel'] }] : id === 'kokoro' ? [{ name: 'Kokoro INT8', extensions: ['bz2'] }] : id === 'hy-mt2' ? [{ name: nativeText('GGUF 模型'), extensions: ['gguf'] }] : [{ name: 'Wiktextract JSONL', extensions: ['gz', 'jsonl', 'json'] }] });
+      properties: isArgos || id === 'ocr' ? ['openFile', 'multiSelections'] : ['openFile'],
+      filters: id === 'ocr' ? [{ name: 'OCR ONNX', extensions: ['onnx'] }] : isArgos ? [{ name: 'Argos model', extensions: ['argosmodel'] }] : id === 'kokoro' ? [{ name: 'Kokoro INT8', extensions: ['bz2'] }] : id === 'hy-mt2' ? [{ name: nativeText('GGUF 模型'), extensions: ['gguf'] }] : [{ name: 'Wiktextract JSONL', extensions: ['gz', 'jsonl', 'json'] }] });
     if (selected.canceled) return null;
     if (isArgos && selected.filePaths.length !== 2) throw new Error('请同时选择中英两个方向的 .argosmodel 文件。');
+    if (id === 'ocr') { capture.cancelWork(); return ocr.import(selected.filePaths); }
     return installResource(id, isArgos ? selected.filePaths : selected.filePaths[0]);
   });
   handle('resources:source', id => {
     if (id === 'github') return shell.openExternal('https://github.com/hyieq/BestDict');
-    const url = id === 'kokoro' ? resources.kokoroSpec.homepage : id === 'argos' ? resources.argosSpec.homepage : id === 'hy-mt2' ? resources.hySpec.homepage : id === 'hy-license' ? resources.hySpec.licenseUrl : resources.list().find(item => item.id === id)?.homepage;
+    const url = id === 'ocr' ? ocr.spec.homepage : id === 'multi-dictionaries' ? resources.catalog.source.homepage : id === 'kokoro' ? resources.kokoroSpec.homepage : id === 'argos' ? resources.argosSpec.homepage : id === 'hy-mt2' ? resources.hySpec.homepage : id === 'hy-license' ? resources.hySpec.licenseUrl : resources.list().find(item => item.id === id)?.homepage;
     if (!url) throw new Error('无效的来源。');
     return shell.openExternal(url);
   });
@@ -449,7 +509,7 @@ else {
       (process.env.BESTDICT_PYTHON || path.join(root, 'runtime', 'python', process.platform === 'win32' ? 'python.exe' : 'bin/python3'));
     dictionary = new WorkerClient(python, path.join(root, 'backend', 'worker.py'), assets, 'dictionary');
     resources = new ResourceManager({ assets, library: process.env.BESTDICT_LIBRARY && testing ? process.env.BESTDICT_LIBRARY : path.join(app.getPath('userData'), 'library'), python,
-      script: path.join(root, 'backend', 'worker.py'), progress: data => window?.webContents.send('resources:progress', data) });
+      script: path.join(root, 'backend', 'worker.py'), progress: data => { downloads?.update(data); if (window && !window.isDestroyed() && !quitting) window.webContents.send('resources:progress', data); } });
     translator = new WorkerClient(python, path.join(root, 'backend', 'worker.py'), resources.argosRoot(), 'translation');
     speech = new SpeechService({ python, backend: path.join(root, 'backend'), resources, cacheDirectory: path.join(app.getPath('userData'), 'speech-cache') });
     speechSessions = new SpeechSessions({ cancel: cancelSpeech, notify: stopSpeechPlayers });
@@ -503,6 +563,24 @@ else {
         return { ...result, engine: 'Argos Translate' };
       },
     });
+    downloads = new ResourceQueue({ library: resources.library,
+      known: id => ['multi-dictionaries', 'argos', 'hy-mt2', 'kokoro', 'ocr'].includes(id),
+      cancel: id => id === 'ocr' ? ocr.cancelDownload() : resources.cancel(),
+      run: async (id, options, signal) => {
+        if (id === 'ocr') return ocr.install(options, { signal, onProgress: event => downloads.update(event) });
+        const source = await resources.download(id, options, signal);
+        signal.throwIfAborted();
+        if (id === 'hy-mt2') hy.stop();
+        if (id === 'argos') translator.stop();
+        if (id === 'kokoro') { await speech.suspend(); speechSessions.current = null; stopSpeechPlayers(); }
+        try {
+          signal.throwIfAborted();
+          const result = await resources.install(id, source);
+          if (id === 'argos' && result && resources.argosStatus().ready && !settings.argosConfigured)
+            saveSettings({ ...settings, translationEngine: 'argos', argosConfigured: true });
+          return result;
+        } finally { if (id === 'kokoro') { speech.suspended = false; updateSpeechStandby(); } }
+      } });
     setupIPC();
     const icon = process.platform === 'win32' ? path.join(assets, 'icon.ico') : nativeImage.createFromPath(path.join(assets, 'icon.png')).resize({ width: 32, height: 32 });
     tray = new Tray(icon);
@@ -527,10 +605,10 @@ else {
 
 app.on('activate', reveal);
 app.on('window-all-closed', () => {});
-app.on('before-quit', () => { quitting = true; capture?.stop(); captureTranslator?.stop(); captureHy?.stop(); rememberBounds(); dictionary?.stop(); translator?.stop(); hy?.stop(); speech?.stop(); resources?.cancel(); });
+app.on('before-quit', () => { quitting = true; downloads?.stop(); capture?.stop(); captureTranslator?.stop(); captureHy?.stop(); rememberBounds(); dictionary?.stop(); translator?.stop(); hy?.stop(); speech?.stop(); resources?.cancel(); });
 app.on('will-quit', () => { globalShortcut.unregisterAll(); tray?.destroy(); });
 // Native tray interaction is exercised by Playwright in an isolated test process.
 if (testing) globalThis.__bestdictNative = { getTray: () => tray, getTrayMenu: () => trayMenu,
   toggleMini, toggleMain: toggle,
-  getServices: () => ({ resources, translator, hy, speech, ocr, capture, captureTranslator, captureHy, updates }),
+  getServices: () => ({ resources, translator, hy, speech, ocr, capture, captureTranslator, captureHy, updates, downloads }),
   readSettings: () => JSON.parse(fs.readFileSync(settingsPath, 'utf8')) };

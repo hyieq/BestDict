@@ -23,7 +23,7 @@ try {
   assert.equal(resources.hy.ready, true);
   await assert.rejects(page.evaluate(() => window.bestdict.translate('Hello.', 'en-zh', 1)), /尚未开启/);
   await page.getByRole('button', { name: '设置', exact: true }).click();
-  await page.getByRole('tab', { name: '翻译引擎', exact: true }).click();
+  await page.getByRole('tab', { name: '模型与词库', exact: true }).click();
   await page.getByRole('checkbox', { name: '自动翻译中英句子' }).check();
   await page.getByRole('button', { name: '保存设置', exact: true }).click();
   await page.getByRole('button', { name: '句子翻译', exact: true }).click();
@@ -38,10 +38,10 @@ try {
   await page.waitForFunction(() => document.querySelector('[data-testid="translation-result"]')?.textContent?.toLowerCase().includes('park'), { timeout: 60000 });
   await page.getByRole('button', { name: '查词', exact: true }).click();
   await page.getByRole('button', { name: '设置', exact: true }).click();
-  await page.getByRole('tab', { name: '词库', exact: true }).click();
+  await page.getByRole('tab', { name: '模型与词库', exact: true }).click();
   await page.screenshot({ path: path.join(captures, 'dictionaries.png') });
-  await page.getByTestId('dictionary-wiktionary-es-zh').getByRole('button', { name: '选择词库', exact: true }).click();
   await page.getByRole('button', { name: '保存设置', exact: true }).click();
+  await page.getByRole('combobox', { name: '选择当前词库' }).selectOption('wiktionary-es-zh');
   const cases = [['es', 'hola', /你好/], ['ja', '猫', /[猫貓]/], ['ko', '사랑', /[爱愛]/], ['fr', 'bonjour', /你好|早安/]];
   for (const [code, word, gloss] of cases) {
     if (code !== 'es') {
@@ -53,7 +53,7 @@ try {
     if (code === 'ja') await page.screenshot({ path: path.join(captures, 'japanese.png') });
   }
   await page.getByRole('button', { name: '设置', exact: true }).click();
-  await page.getByRole('tab', { name: '翻译引擎', exact: true }).click();
+  await page.getByRole('tab', { name: '模型与词库', exact: true }).click();
   await page.screenshot({ path: path.join(captures, 'engines.png') });
   await page.getByRole('button', { name: '保存设置', exact: true }).click();
   await input.fill('Bonjour, comment allez-vous ?');
@@ -65,9 +65,9 @@ try {
   await page.getByRole('button', { name: '设置', exact: true }).click();
   await page.getByRole('tab', { name: '通用', exact: true }).click();
   await page.getByRole('button', { name: '深色', exact: true }).click();
-  await page.getByRole('tab', { name: '词库', exact: true }).click();
-  await page.getByTestId('dictionary-ecdict').getByRole('button', { name: '选择词库', exact: true }).click();
+  await page.getByRole('tab', { name: '模型与词库', exact: true }).click();
   await page.getByRole('button', { name: '保存设置', exact: true }).click();
+  await page.getByRole('combobox', { name: '选择当前词库' }).selectOption('ecdict');
   await page.getByRole('button', { name: '查词', exact: true }).click();
   await input.fill('serendipity');
   await page.getByTestId('entry-word').filter({ hasText: 'serendipity' }).waitFor();
@@ -76,7 +76,7 @@ try {
   assert.equal(await page.getByRole('alert').count(), 0, 'Resource status checks must not be cancelled by typing.');
   await page.screenshot({ path: path.join(captures, 'dark-dictionary.png') });
   await page.getByRole('button', { name: '设置', exact: true }).click();
-  await page.getByRole('tab', { name: '翻译引擎', exact: true }).click();
+  await page.getByRole('tab', { name: '模型与词库', exact: true }).click();
   await page.getByRole('checkbox', { name: '自动翻译中英句子' }).uncheck();
   await page.getByRole('button', { name: '保存设置', exact: true }).click();
   await page.getByRole('button', { name: '句子翻译', exact: true }).click();

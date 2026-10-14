@@ -85,7 +85,7 @@ class CaptureService {
   async start() {
     if (process.platform !== 'win32') throw new Error('截图翻译目前仅支持 Windows。');
     if (this.capturing) return;
-    if (!this.ocr.status().ready) { this.openMain('', 'capture'); return; }
+    if (!this.ocr.status().ready) { this.openMain('', 'resources'); return; }
     this.cancelWork();
     const generation = ++this.generation;
     this.capturing = true;

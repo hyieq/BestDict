@@ -146,6 +146,100 @@ def install_dictionary(assets, library, resource_id, emit, source_file=None):
         temp.unlink(missing_ok=True)
 
 
+def install_dictionary_pack(assets, library, resource_ids, emit, source_file=None):
+    """Read the shared source once; commit each selected language only when valid."""
+    catalog = json.loads((assets / 'dictionaries.json').read_text(encoding='utf-8'))
+    if not isinstance(resource_ids, list) or len(set(resource_ids)) != len(resource_ids):
+        raise ValueError('词库选择无效。')
+    specs = [s for s in catalog['dictionaries'] if s['id'] in resource_ids]
+    if len(specs) != len(resource_ids):
+        raise ValueError('词库选择无效。')
+    if not specs:
+        return {'ready': True}
+    raw = Path(source_file) if source_file else library / 'cache' / 'wiktionary-zh.jsonl.gz'
+    source = catalog['source']
+    if not raw.exists():
+        fetch(source['url'], raw, emit, 'multi-dictionaries', source['downloadBytesEstimate'])
+    states = {}
+    positions = {'noun': 'n.', 'verb': 'v.', 'adj': 'adj.', 'adv': 'adv.', 'pron': 'pron.', 'prep': 'prep.', 'conj': 'conj.', 'intj': 'int.'}
+    try:
+        for spec in specs:
+            folder = library / spec['id']
+            folder.mkdir(parents=True, exist_ok=True)
+            temp = folder / 'dictionary.db.building'
+            temp.unlink(missing_ok=True)
+            conn = sqlite3.connect(temp)
+            states[spec['languageCode']] = {'spec': spec, 'conn': conn, 'temp': temp, 'folder': folder, 'count': 0}
+            conn.executescript('''PRAGMA journal_mode=OFF; PRAGMA synchronous=OFF;
+              CREATE TABLE entries(id INTEGER PRIMARY KEY, word TEXT NOT NULL UNIQUE, normalized TEXT NOT NULL,
+                phonetic TEXT, translation TEXT, definition TEXT, exchange TEXT, tags TEXT, rank INTEGER NOT NULL);
+              CREATE TABLE aliases(normalized TEXT, entry_id INTEGER);
+              CREATE TABLE metadata(key TEXT PRIMARY KEY, value TEXT);''')
+        last_emit = 0
+        opener = gzip.open if raw.suffix == '.gz' else open
+        with opener(raw, 'rt', encoding='utf-8-sig') as stream:
+            for line in stream:
+                if not line.strip():
+                    continue
+                row = json.loads(line)
+                state = states.get(row.get('lang_code'))
+                if not state:
+                    continue
+                word = str(row.get('word', '')).strip()
+                if not word or len(word) > 100:
+                    continue
+                glosses = []
+                prefix = positions.get(row.get('pos'), '')
+                for sense in row.get('senses', []):
+                    for gloss in sense.get('glosses', sense.get('raw_glosses', [])):
+                        if isinstance(gloss, str) and gloss.strip():
+                            glosses.append((prefix + ' ' + gloss.strip()).strip())
+                    if not sense.get('glosses'):
+                        for related in sense.get('form_of', []) + sense.get('alt_of', []):
+                            if isinstance(related, dict) and related.get('word'):
+                                glosses.append(f'词形 / 变体：{related["word"]}')
+                if not glosses:
+                    continue
+                conn = state['conn']
+                previous = conn.execute('SELECT id,translation FROM entries WHERE word=?', (word,)).fetchone()
+                if previous:
+                    entry_id = previous[0]
+                    conn.execute('UPDATE entries SET translation=? WHERE id=?', ('\n'.join(dict.fromkeys(previous[1].split('\n') + glosses)), entry_id))
+                else:
+                    phonetic = next((s['ipa'] for s in row.get('sounds', []) if s.get('ipa')), '')
+                    entry_id = conn.execute('INSERT INTO entries(word,normalized,phonetic,translation,definition,exchange,tags,rank) VALUES(?,?,?,?,?,?,?,?)',
+                        (word, normalize(word), phonetic, '\n'.join(dict.fromkeys(glosses)), '', '', '', 999999)).lastrowid
+                    state['count'] += 1
+                for form in row.get('forms', []):
+                    if isinstance(form, dict) and form.get('form') and set(form.get('tags', [])) & {'hiragana', 'katakana', 'romanization'}:
+                        conn.execute('INSERT INTO aliases VALUES(?,?)', (normalize(form['form']), entry_id))
+                if time.monotonic() - last_emit > .4:
+                    count = sum(s['count'] for s in states.values())
+                    emit({'id': 'multi-dictionaries', 'phase': 'indexing', 'count': count, 'message': f'正在建立索引 · {count:,} 词条'})
+                    last_emit = time.monotonic()
+        if any(s['count'] == 0 for s in states.values()):
+            raise ValueError('文件没有所选语言的有效词条，请导入中文版 Wiktextract JSONL 数据。')
+        fingerprint = checksum(raw)
+        for state in states.values():
+            conn, spec, folder = state['conn'], state['spec'], state['folder']
+            conn.executescript('CREATE INDEX idx_normalized ON entries(normalized); CREATE INDEX idx_aliases ON aliases(normalized,entry_id);')
+            conn.executemany('INSERT INTO metadata VALUES(?,?)', [('count', str(state['count'])), ('source', source['name']), ('languageCode', spec['languageCode'])])
+            conn.commit()
+            conn.close()
+            state['temp'].replace(folder / 'dictionary.db')
+            metadata = {**spec, 'source': source['name'], 'license': source['license'], 'licenseUrl': source['licenseUrl'],
+                'homepage': source['homepage'], 'sourceUrl': source['url'], 'attribution': source['attribution'],
+                'count': state['count'], 'format': 'bestdict-sqlite-v1', 'installedAt': time.strftime('%Y-%m-%d'), 'sha256': fingerprint}
+            (folder / 'metadata.json').write_text(json.dumps(metadata, ensure_ascii=False, indent=2), encoding='utf-8')
+            (folder / 'ATTRIBUTION.txt').write_text(source['attribution'] + '\n' + source['license'] + '\n' + source['licenseUrl'] + '\n' + source['url'], encoding='utf-8')
+        emit({'id': 'multi-dictionaries', 'phase': 'complete', 'message': '多语言词库已安装。'})
+        return {'ready': True}
+    finally:
+        for state in states.values():
+            state['conn'].close()
+            state['temp'].unlink(missing_ok=True)
+
+
 def install_kokoro(assets, library, emit, source_file=None):
     import tarfile
     spec = json.loads((assets / 'kokoro-model.json').read_text(encoding='utf-8'))

@@ -26,6 +26,20 @@ fs.writeFileSync(fixture, gzipSync([
   { word: '사랑', lang_code: 'ko', senses: [{ glosses: ['爱，爱情'] }] },
 ].map(row => JSON.stringify(row)).join('\n')));
 after(() => { manager.cancel(); dictionary.stop(); /* Test artifacts stay in the OS temp directory. */ });
+test('one shared import builds all four language indexes and keeps unrelated files on removal', async () => {
+  const library = path.join(temporary, 'pack');
+  const pack = new ResourceManager({ assets: path.join(root, 'resources'), library, python, script, progress: () => {} });
+  await pack.install('multi-dictionaries', fixture);
+  assert.ok(pack.list().filter(item => !item.builtIn).every(item => item.installed));
+  const invalid = path.join(temporary, 'partial-pack.jsonl');
+  fs.writeFileSync(invalid, JSON.stringify({ word: 'hola', lang_code: 'es', senses: [{ glosses: ['你好'] }] }));
+  await assert.rejects(pack.install('multi-dictionaries', invalid, { replace: true }), /没有所选语言/);
+  assert.ok(pack.list().filter(item => !item.builtIn).every(item => item.installed), 'Invalid replacement preserves existing indexes');
+  fs.writeFileSync(path.join(library, 'wiktionary-es-zh', 'keep.txt'), 'keep');
+  await pack.uninstall('multi-dictionaries');
+  assert.ok(pack.list().filter(item => !item.builtIn).every(item => !item.installed));
+  assert.equal(fs.readFileSync(path.join(library, 'wiktionary-es-zh', 'keep.txt'), 'utf8'), 'keep');
+});
 
 test('optional dictionaries start uninstalled; imports select the right language and normalize Unicode', async () => {
   assert.ok(manager.list().filter(item => !item.builtIn).every(item => !item.installed));

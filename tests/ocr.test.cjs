@@ -39,6 +39,16 @@ test('hash mismatch leaves no ready model or staging files', async t => {
   assert.equal(service.status().ready, false);
   assert.deepEqual(fs.readdirSync(service.directory), []);
 });
+test('local imports identify renamed model files by hash and preserve installed weights after invalid input', async t => {
+  const { service, directory, file } = await fixture(t, (_req, res) => res.end());
+  const source = path.join(directory, 'renamed-model');
+  fs.writeFileSync(source, 'verified model');
+  await service.import([source]);
+  assert.equal(service.status().ready, true);
+  fs.writeFileSync(source, 'bad model');
+  await assert.rejects(service.import([source]), /校验失败/);
+  assert.equal(fs.readFileSync(path.join(service.directory, file.name), 'utf8'), 'verified model');
+});
 test('cancel streaming download releases lock and permits retry', async t => {
   let first = true;
   let started;

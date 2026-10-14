@@ -1,5 +1,25 @@
 # Testing
 
+## 模型与词库中心
+
+`npm run test:resources-ui` 使用隔离客户端和本地 HTTP fixture，验证四个设置标签、
+紧凑的统一资源列表、共享四语数据只下载一次、批量队列、失败后继续其他任务、
+OCR 暂停与 Range 续传、系统音色、跨页下载入口及中英文界面。
+模型下载与安装 fixture 不代表真实模型推理；截图只用于布局 QA，不用于 AI 输出宣传。
+结果与截图在 `test-results/resource-center`。
+
+`node --test tests/download-file.test.cjs tests/resource-queue.test.cjs tests/resources.test.cjs`
+验证暂停保留数据、重启后手动继续、精确 Content-Range 校验、来源忽略 Range 时安全重下、
+坏哈希/不可用来源自动切换、动态词库数据不跨 URL 拼接、停滞超时、队列去重和恢复，
+以及四语索引批量建立、导入和只移除已知资源文件。
+所有下载测试使用本地小型 fixture，不下载模型，也不改变已安装客户端。
+
+下载缓存位于隔离资源库的 cache 目录，队列保存在 download-jobs.json。
+OCR 直接存储模型文件，清理下载缓存只删除其未完成片段。
+自定义源只能为 HTTPS、不得在 URL 中携带用户名/密码，文件数必须匹配资源清单。
+混元提供 Hugging Face 原站及镜像；OCR 的 Hugging Face 社区镜像锁定提交，
+两个文件的大小和 SHA-256 均与现有 ModelScope 清单一致。模型安装保持既有校验。
+
 ## 手动检查更新
 
 `node --test tests/updates.test.cjs` 使用固定 Release 数据和本地 HTTP fixture，
@@ -12,7 +32,7 @@
 
 构建后运行 `npm run test:settings`，使用隔离配置验证翻译状态提示关闭后落盘，
 页面重载、语言和外观切换不会重新显示；验证快捷键标题和输入框同行、说明默认折叠
-且可展开，覆盖五个设置页、中英文、浅深色、780×580 小窗口与 150% 缩放。
+且可展开，覆盖四个设置页、中英文、浅深色、780×580 小窗口与 150% 缩放。
 结果和实际客户端截图保存在 `test-results/settings`。
 `npm run test:translation-ui` 另验证关闭启用中的 Argos 提示不会关闭翻译引擎、
 取消正在执行的 AI 翻译，或在切换引擎后重新显示提示。

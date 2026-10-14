@@ -18,7 +18,7 @@ try {
   await main.getByText('离线资源已就绪').waitFor();
   assert.equal(await desktop.evaluate(({ globalShortcut }) => globalShortcut.isRegistered('Control+Alt+Shift+F8')), true);
   await main.getByRole('button', { name: '截图翻译', exact: true }).click();
-  await main.getByTestId('ocr-settings').waitFor();
+  await main.getByTestId('resource-ocr').waitFor();
   assert.equal(await main.evaluate(() => window.bestdict.getOCR()).then(s => s.ready), false);
   await main.getByRole('button', { name: '关闭设置' }).click();
   // Use pinned, real weights in an isolated library; no user settings or screenshots are saved.

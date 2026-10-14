@@ -4,7 +4,7 @@
   <p><strong>专注本地AI查词翻译<br/>纯净、无广告、无订阅</strong></p>
   <p>A quiet, offline-first desktop dictionary & translator.</p>
   <p>
-    <img src="https://img.shields.io/badge/version-0.4.21-0067b8" alt="Version 0.4.21" />
+    <img src="https://img.shields.io/badge/version-0.4.22-0067b8" alt="Version 0.4.22" />
     <img src="https://img.shields.io/badge/platform-Windows_·_macOS-0078d4" alt="Windows and macOS" />
     <img src="https://img.shields.io/badge/Electron-React_·_TypeScript-47848f" alt="Electron, React and TypeScript" />
     <a href="LICENSE"><img src="https://img.shields.io/badge/code_license-MIT-3d8558" alt="Code license: MIT" /></a>
@@ -25,7 +25,7 @@ BestDict 是一款 Windows x64 / macOS 离线词典与翻译软件。按下 `Ctr
 - **扩展词库**：按需安装西班牙语、日语、韩语、法语的中文释义词库，支持自动匹配已安装词库。
 - **桌面常驻**：全局快捷键、托盘、自启动、浅深色主题和中英文界面。
 - **迷你模式**：`Alt + Shift + D` 唤起紧凑查词窗，支持发音、复制、固定置顶和展开完整释义；快捷键及失焦隐藏可在设置中调整。
-- **截图翻译（Windows）**：在 **设置 → 截图翻译** 下载约 31 MB OCR 模型后，按 `Alt + Shift + S` 框选屏幕文字，松开后离线识别。结果窗支持编辑原文、翻译、复制、发音与置顶；优先使用已安装的 HY，或已启用的 Argos，未安装翻译模型仍可提取文字。`Esc` / 右键取消框选；截图仅在内存中处理，快捷键可在通用设置中修改。
+- **截图翻译（Windows）**：在 **设置 → 模型与词库** 下载约 31 MB OCR 模型后，按 `Alt + Shift + S` 框选屏幕文字，松开后离线识别。结果窗支持编辑原文、翻译、复制、发音与置顶；优先使用已安装的 HY，或已启用的 Argos，未安装翻译模型仍可提取文字。`Esc` / 右键取消框选；截图仅在内存中处理，快捷键可在通用设置中修改。
 - **毛玻璃界面**：冰蓝浅色与深海深色主题，Windows 11 22H2 及以上使用原生 Acrylic；其他系统保留应用内玻璃层次，并支持减少透明效果和动画。
 - **发音缓存**：生成的音频在本机复用，重启后仍可使用；按文本、语言、音色、语速和模型区分，最多 128 MiB / 1,000 条，超限淘汰最近最少使用的音频，可在 **设置 → 发音 → 音频缓存** 查看占用并清理。
 
@@ -40,12 +40,16 @@ BestDict 是一款 Windows x64 / macOS 离线词典与翻译软件。按下 `Ctr
 
 ![迷你模式](docs/assets/mini-dictionary.png)
 
+模型与词库：统一下载、续传和管理可选功能。
+
+![模型与词库](docs/assets/resource-center.png)
+
 <a id="quick-start"></a>
 ## 开始使用
 
 1. 从 [Releases](https://github.com/hyieq/BestDict/releases/latest) 下载对应系统的安装包：Windows 使用 `Setup.exe`；Intel Mac 使用 `macOS-x64.dmg`；M 系列 Mac 使用 `macOS-arm64.dmg`，打开后将 BestDict 拖入「应用程序」。
 2. 输入单词即可查词；`Ctrl + Shift + D` 唤起窗口，`Esc` 隐藏到托盘。
-3. 需要整句翻译时，在 **设置 → 翻译引擎** 下载或导入模型。
+3. 需要整句翻译时，在 **设置 → 模型与词库** 下载或导入模型。
 
 安装包包含内置词库和必要运行时，无需另装 Python。翻译模型按需下载，启动时不会自动下载。
 
@@ -62,12 +66,12 @@ Mac 安装包尚未经过 Apple Developer ID 签名和公证，首次打开可�
 
 AI 通过输入框右侧按钮启动；已有译文时，切换风格会重新生成。输入润色要求后点击「润色并刷新」。如果模型返回相同内容，界面会提示。
 
-下载较慢时，可在引擎设置中复制官方链接，下载后导入。Argos 需同时导入中英两个 `.argosmodel` 文件；MT2 使用官方 Q4_K_M GGUF。升级自 MT1.5 时需重新获取 MT2 模型，旧文件不会自动删除。推荐至少 8 GB 内存，推理速度取决于硬件。
+模型与词库页统一提供批量下载、暂停、续传、来源选择和本地导入。退出软件会保留未完成的下载，下次打开后手动继续；失败会重试并尝试可用的备用源。也可复制所选来源的链接，在浏览器中下载后导入。Argos 需同时导入中英两个 `.argosmodel` 文件；MT2 使用官方 Q4_K_M GGUF。升级自 MT1.5 时需重新获取 MT2 模型，旧文件不会自动删除。推荐至少 8 GB 内存，推理速度取决于硬件。
 
 <a id="dictionaries"></a>
 ## 词库与本地数据
 
-扩展词库在 **设置 → 词库** 安装或导入，来源为 [Kaikki / Wiktextract](https://kaikki.org/dictionary/rawdata.html) 的中文维基词典数据。四种语言共享约 224 MB 的源数据缓存；实际词条数随上游更新而变化。支持中文 Wiktextract JSONL / gzip 导入。
+在 **设置 → 模型与词库** 一次安装西班牙语、日语、韩语、法语四种扩展词库，或导入本地文件。来源为 [Kaikki / Wiktextract](https://kaikki.org/dictionary/rawdata.html) 的中文维基词典数据。四种语言共享约 224 MB 的源数据缓存；实际词条数随上游更新而变化。支持中文 Wiktextract JSONL / gzip 导入。
 
 原文和译文在本机处理，不上传或记录查询日志。设置与下载资源保存在 `%APPDATA%\BestDict\`；可选资源不进入安装包。模型可能误译，风格改写的效果也会随文本而变化。
 发音音频保存在该目录下的 `speech-cache`，文件名不包含查询文本；清理缓存会删除生成的音频，保留已下载的语音模型。
@@ -166,7 +170,7 @@ Remove-Item Env:BESTDICT_RELEASE_DIR
 长句和段落会按自然短语分段，首段生成后开始播放，同时继续生成后续内容；推理较慢时自动增加缓冲。
 停止或切换内容会清空待播音频，只有完整生成的音频才保存到缓存。
 隐藏到托盘后空闲 2 分钟释放模型，快速唤醒继续复用；退出或切换到系统语音时立即释放。
-语音包约 147 MB，独立按需下载，也可复制官方链接后导入 `.tar.bz2` 文件，导入时验证 SHA-256。
+语音包约 147 MB，在 **设置 → 模型与词库** 按需下载，也可复制链接后导入 `.tar.bz2` 文件，导入时验证 SHA-256。
 其他语言使用对应的系统音色；没有匹配音色时会提示安装，不会用错误语言朗读。
 所有合成均在本机进行。Windows 使用 System.Speech，macOS 使用系统 `say`；Kokoro 共用模型、分别安装平台运行库。
 macOS 的实际声音设备体验仍需真机验收。

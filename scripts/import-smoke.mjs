@@ -27,10 +27,10 @@ try {
     function assertPicker(options) { if (!options.properties.includes('multiSelections')) throw new Error('Argos requires a two-file picker.'); }
   }, files);
   await page.getByRole('button', { name: '设置', exact: true }).click();
-  await page.getByRole('tab', { name: '翻译引擎', exact: true }).click();
-  await page.getByTestId('engine-argos').locator('summary').click();
-  await page.getByTestId('engine-argos').getByRole('button', { name: '导入模型包', exact: true }).click();
-  await page.getByTestId('engine-argos').getByText('已启用', { exact: true }).waitFor({ timeout: 60000 });
+  await page.getByRole('tab', { name: '模型与词库', exact: true }).click();
+  await page.getByTestId('resource-argos').locator('summary').click();
+  await page.getByTestId('resource-argos').getByRole('button', { name: '导入本地文件', exact: true }).click();
+  await page.getByTestId('resource-argos').getByRole('checkbox', { name: '自动翻译中英句子' }).waitFor({ timeout: 60000 });
   assert.equal(await page.evaluate(() => window.bestdict.getSettings().then(s => s.translationEngine)), 'argos');
   assert.equal(await page.evaluate(() => window.importPhases.includes('downloading')), false);
   await page.getByRole('button', { name: '保存设置', exact: true }).click();
@@ -39,7 +39,7 @@ try {
   await page.reload();
   await page.getByTestId('translation-engine-status').filter({ hasText: 'Argos Translate' }).waitFor();
   await page.getByTestId('translation-engine-status').click();
-  await page.getByTestId('engine-argos').getByText('已启用', { exact: true }).waitFor();
+  await page.getByTestId('resource-argos').getByRole('checkbox', { name: '自动翻译中英句子' }).waitFor();
   await page.getByRole('button', { name: '关闭设置' }).click();
   await page.getByRole('textbox', { name: '输入单词或句子' }).fill('Please send me the report before Friday.');
   await page.getByTestId('translation-result').waitFor({ timeout: 60000 });

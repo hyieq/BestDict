@@ -193,6 +193,27 @@ textarea::placeholder { color: var(--placeholder); font-size: 15px; }
 .resource-details .engine-actions { margin: 12px 0; }
 .resource-details .resource-card { margin: 0 0 12px; }
 .resource-details > p { margin: 0 0 10px; }
+.resource-center { display: flex; flex-direction: column; gap: 7px; }
+.resource-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; color: var(--muted); font-size: 11px; }
+.resource-item { border: 1px solid var(--border); border-radius: 10px; padding: 6px 12px; background: var(--surface); }
+.resource-row { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.resource-row > input { flex: 0 0 auto; width: 15px; height: 15px; accent-color: var(--accent); }
+.resource-info, .resource-row.builtin > div { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.resource-info { flex-direction: row; flex-wrap: wrap; align-items: baseline; gap: 3px 9px; }
+.resource-row strong { font-size: 13px; }
+.resource-row span { font-size: 11px; color: var(--muted); }
+.resource-row.builtin { padding: 8px 12px; color: var(--muted); }
+.resource-ready { color: var(--accent); flex: 0 0 auto; }
+.resource-languages { font-size: 11px; color: var(--muted); margin: 6px 0 0 25px; }
+.resource-item .resource-details { margin-top: 5px; }
+.resource-item .resource-details > summary { padding: 4px 0 0; }
+.resource-item .resource-details[open] > summary { padding-bottom: 10px; }
+.resource-enable { margin-top: 10px; margin-bottom: 0; }
+.resource-custom { display: flex; flex-direction: column; gap: 6px; font-size: 11px; }
+.resource-custom > span { color: var(--muted); overflow-wrap: anywhere; }
+.resource-custom textarea { width: 100%; min-height: 55px; resize: vertical; border: 1px solid var(--border); border-radius: 7px; padding: 8px; background: var(--page); color: var(--ink); }
+.resource-confirm { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; padding: 10px 0; font-size: 11px; }
+.resource-confirm button { color: var(--accent); }
 .license-reminder { display: flex; align-items: center; gap: 8px; margin-top: 12px; font-size: 10px; color: var(--muted); }
 .license-reminder button { color: var(--accent); padding: 0; }
 .engine-select { display: flex; align-items: center; justify-content: space-between; text-align: left; width: 100%; padding: 2px 0; }

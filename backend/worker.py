@@ -169,10 +169,12 @@ def translate(text, direction):
 def dispatch(request):
     method = request.get('method')
     if method == 'install' and args.kind == 'installer':
-        from resource_installer import install_dictionary, install_hy, install_argos, install_kokoro
+        from resource_installer import install_dictionary, install_dictionary_pack, install_hy, install_argos, install_kokoro
         def emit(progress):
             print(json.dumps({'event': 'progress', 'data': progress}, ensure_ascii=False))
         library = Path(request['library'])
+        if request['resourceId'] == 'multi-dictionaries':
+            return install_dictionary_pack(args.assets, library, request.get('dictionaryIds'), emit, request.get('sourceFile'))
         if request['resourceId'] == 'kokoro':
             return install_kokoro(args.assets, library, emit, request.get('sourceFile'))
         if request['resourceId'] == 'argos':

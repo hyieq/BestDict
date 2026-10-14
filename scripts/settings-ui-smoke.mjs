@@ -61,10 +61,10 @@ try {
     await page.getByText(locale === 'en' ? 'Offline resources ready' : '离线资源已就绪').waitFor();
     assert.equal(await page.getByTestId('translation-engine-notice').count(), 0);
     await page.getByRole('button', { name: locale === 'en' ? 'Settings' : '设置', exact: true }).click();
-    const tabs = locale === 'en' ? ['General', 'Dictionaries', 'Translation engines', 'Speech', 'Screenshot translation'] : ['通用', '词库', '翻译引擎', '发音', '截图翻译'];
+    const tabs = locale === 'en' ? ['General', 'Models & dictionaries', 'Speech', 'Screenshot translation'] : ['通用', '模型与词库', '发音', '截图翻译'];
     for (const [index, name] of tabs.entries()) {
       await page.getByRole('tab', { name, exact: true }).click();
-      if (index === 3) {
+      if (index === 2) {
         await page.locator('#system-en').waitFor();
         await page.getByTestId('speech-cache').getByText(/0.*MiB/).waitFor();
       }
