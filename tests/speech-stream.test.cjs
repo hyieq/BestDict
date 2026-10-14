@@ -29,6 +29,9 @@ test('active audio chunks refresh the stall deadline while a genuinely stalled s
   await fs.writeFile(script, `import json, sys, time
 for raw in sys.stdin:
     request = json.loads(raw)
+    if request['method'] == 'ready':
+        print(json.dumps({'id': request['id'], 'result': {'ready': True}}), flush=True)
+        continue
     if request['method'] == 'stall':
         time.sleep(30)
     for sequence in range(4):
@@ -45,6 +48,8 @@ for raw in sys.stdin:
     await fs.rm(directory, { recursive: true, force: true });
   });
   const chunks = [];
+  // Measure streaming progress separately from Python startup on a busy runner.
+  assert.deepEqual(await worker.request('ready', {}, { timeout: 10000 }), { ready: true });
   assert.deepEqual(await worker.request('synthesize', {}, { timeout: 250, onEvent: data => chunks.push(data.sequence) }), { complete: true });
   assert.deepEqual(chunks, [0, 1, 2, 3]);
   await assert.rejects(worker.request('stall', {}, { timeout: 80, onEvent: () => {} }), /超时/);
