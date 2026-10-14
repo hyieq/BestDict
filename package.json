@@ -128,7 +128,7 @@
           ]
         }
       ],
-      "icon": "resources/icon.png",
+      "icon": "resources/branding/app-icon-source.png",
       "category": "public.app-category.reference",
       "identity": "-",
       "hardenedRuntime": false,
