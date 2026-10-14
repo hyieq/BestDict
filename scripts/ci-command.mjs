@@ -8,7 +8,14 @@ if (!name || !command || !/^[a-z-]+$/.test(name)) throw new Error('Usage: ci-com
 mkdirSync('test-results', { recursive: true });
 const log = createWriteStream(path.join('test-results', `${name}.log`));
 let tail = '';
-const child = spawn(command, args, { stdio: ['ignore', 'pipe', 'pipe'] });
+const child = spawn(command, args, { stdio: ['ignore', 'pipe', 'pipe'], detached: process.platform !== 'win32' });
+const timer = setTimeout(() => {
+  const message = `Command exceeded ${process.env.BESTDICT_CI_TIMEOUT_MS || 900000} ms; terminating its process group.\n`;
+  tail += message;
+  log.write(message);
+  console.error(message);
+  try { process.kill(process.platform === 'win32' ? child.pid : -child.pid, 'SIGKILL'); } catch {}
+}, Number(process.env.BESTDICT_CI_TIMEOUT_MS || 900000));
 for (const stream of [child.stdout, child.stderr]) stream.on('data', data => {
   process.stdout.write(data);
   log.write(data);
@@ -16,6 +23,7 @@ for (const stream of [child.stdout, child.stderr]) stream.on('data', data => {
 });
 child.on('error', error => { tail += error.message; });
 child.on('close', code => {
+  clearTimeout(timer);
   log.end();
   if (code !== 0) {
     const message = tail.replace(/%/g, '%25').replace(/\r/g, '%0D').replace(/\n/g, '%0A');

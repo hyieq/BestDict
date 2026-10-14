@@ -54,6 +54,8 @@ jobs:
           node scripts/ci-command.mjs bundle python scripts/verify_macos_bundle.py "$RUNNER_TEMP/BestDict relocation/BestDict.app"
           echo "BESTDICT_TEST_EXE=$RUNNER_TEMP/BestDict relocation/BestDict.app/Contents/MacOS/BestDict" >> "$GITHUB_ENV"
       - name: Test packaged desktop
+        env:
+          BESTDICT_CI_TIMEOUT_MS: '120000'
         run: |
           failed=0
           node scripts/ci-command.mjs desktop npm run test:desktop || failed=1
