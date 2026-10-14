@@ -163,14 +163,21 @@ test('failure to prepare is retryable and unloading during startup cannot resurr
 });
 
 test('activating a system-only window does not cancel ongoing system voice discovery or synthesis', async t => {
-  const { speech } = await fixture(t);
-  let discover;
-  speech.voices = () => new Promise(resolve => { discover = resolve; });
-  speech.windows = async () => 'system audio';
-  const options = { ...defaultSpeech, engine: 'system' };
-  const audio = speech.synthesize('hello', 'en', options);
-  await until(() => !!discover);
-  await speech.setActive(true, options);
-  discover([{ id: 'fixture', language: 'en-US' }]);
-  assert.equal((await audio).audio, 'system audio');
+  for (const platform of ['win32', 'darwin']) {
+    const { speech } = await fixture(t);
+    speech.platform = platform;
+    let discover;
+    speech.voices = () => new Promise(resolve => { discover = resolve; });
+    speech.windows = async () => Buffer.from('system audio').toString('base64');
+    speech.run = async (_command, args) => {
+      assert.equal(args[args.indexOf('-v') + 1], 'fixture');
+      await fs.writeFile(args[args.indexOf('-o') + 1], 'system audio');
+    };
+    const options = { ...defaultSpeech, engine: 'system' };
+    const audio = speech.synthesize('hello', 'en', options);
+    await until(() => !!discover);
+    await speech.setActive(true, options);
+    discover([{ id: 'fixture', language: 'en-US' }]);
+    assert.equal(Buffer.from((await audio).audio, 'base64').toString(), 'system audio', platform);
+  }
 });
