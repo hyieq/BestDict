@@ -3,7 +3,7 @@
 .mini-title { display: flex; align-items: center; justify-content: space-between; height: 30px; margin-bottom: 10px; -webkit-app-region: drag; }
 .mini-title > span, .mini-title > div { display: flex; align-items: center; }
 .mini-title > span { font-weight: 650; letter-spacing: -.3px; }
-.mini-title > span > svg { color: var(--accent); margin-right: 7px; }
+.mini-title > span > img { width: 22px; height: 22px; object-fit: contain; margin-right: 4px; }
 .mini-brand { color: var(--accent); }
 .mini-title .chrome-button { width: 29px; height: 28px; margin: 0; }
 .mini-title [aria-pressed=true] { color: var(--accent); background: var(--tint); }

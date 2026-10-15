@@ -1,6 +1,7 @@
 import { useEffect, useRef, type RefObject, type ReactNode } from 'react';
-import { ArrowUpRight, BookOpen, Check, Copy, Pin, Search, X, LoaderCircle } from 'lucide-react';
+import { ArrowUpRight, Check, Copy, Pin, Search, X, LoaderCircle } from 'lucide-react';
 import type { Entry } from './types';
+import appIcon from './assets/app-icon.png';
 import './mini.css';
 
 type Props = {
@@ -29,7 +30,7 @@ export default function MiniDictionary(p: Props) {
   return <main className="app-shell mini-shell" data-testid="mini-window">
     <div ref={top} className="mini-top">
       <header className="mini-title">
-        <span><BookOpen size={15} />Best<span className="mini-brand">Dict</span></span>
+        <span><img src={appIcon} alt="" />Best<span className="mini-brand">Dict</span></span>
         <div>
           <button className="chrome-button" aria-label={p.t('固定置顶')} title={p.t('固定置顶')} aria-pressed={p.pinned} onClick={p.onPin}><Pin size={15} fill={p.pinned ? 'currentColor' : 'none'} /></button>
           <button className="chrome-button" aria-label={p.t('展开主窗口')} title={p.t('展开主窗口')} onClick={p.onExpand}><ArrowUpRight size={18} /></button>

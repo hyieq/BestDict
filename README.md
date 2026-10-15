@@ -4,7 +4,7 @@
   <p><strong>专注本地AI查词翻译<br/>纯净、无广告、无订阅</strong></p>
   <p>A quiet, offline-first desktop dictionary & translator.</p>
   <p>
-    <img src="https://img.shields.io/badge/version-0.4.25-0067b8" alt="Version 0.4.25" />
+    <img src="https://img.shields.io/badge/version-0.4.26-0067b8" alt="Version 0.4.26" />
     <img src="https://img.shields.io/badge/platform-Windows_·_macOS-0078d4" alt="Windows and macOS" />
     <img src="https://img.shields.io/badge/Electron-React_·_TypeScript-47848f" alt="Electron, React and TypeScript" />
     <a href="LICENSE"><img src="https://img.shields.io/badge/code_license-MIT-3d8558" alt="Code license: MIT" /></a>
@@ -114,7 +114,7 @@ npm.cmd run dev
 `setup_hy_runtime.py` 只获取 CPU 推理程序和许可。**两个脚本均不下载翻译模型权重**。
 开发客户端也默认为「仅查词」，模型通过设置主动下载。
 下载缓存位于项目 `.cache`，失败可重试。
-`make_icons.py` 从 `resources/branding/app-icon-source.png` 编码 PNG 与多尺寸 Windows ICO，保留原始图案。
+`make_icons.py` 从 `resources/branding/app-icon-source.png` 编码透明 PNG、多尺寸 Windows ICO 与 macOS ICNS，保留原始图案与透明背景。
 
 ### 验证和打包
 
