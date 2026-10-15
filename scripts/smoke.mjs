@@ -117,10 +117,10 @@ try {
   await page.screenshot({ path: path.join(captures, 'english-welcome.png') });
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
   await page.getByRole('tab', { name: 'Models & dictionaries', exact: true }).click();
-  assert.ok((await page.getByRole('dialog').innerText()).includes('Spanish, Japanese, Korean and French → Chinese'));
+  await page.getByTestId('resource-multi-dictionaries').getByText('Spanish, Japanese, Korean and French → Chinese', { exact: true }).waitFor();
   assert.ok(!(await page.getByRole('dialog').innerText()).includes('中文版'));
   await page.getByRole('tab', { name: 'Models & dictionaries', exact: true }).click();
-  assert.ok((await page.getByRole('dialog').innerText()).includes('Basic sentence translation'));
+  await page.getByTestId('resource-argos').getByText('Basic sentence translation', { exact: true }).waitFor();
   await page.getByTestId('resource-argos').locator('summary').click();
   await page.getByTestId('resource-hy-mt2').locator('summary').click();
   assert.equal(await page.getByRole('button', { name: 'Copy download links', exact: true }).count(), 2);
