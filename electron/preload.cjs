@@ -53,6 +53,8 @@ contextBridge.exposeInMainWorld('bestdict', {
   status: () => ipcRenderer.invoke('app:status'),
   checkForUpdates: () => ipcRenderer.invoke('updates:check'),
   openUpdatePage: target => ipcRenderer.invoke('updates:open', target),
+  setShortcutRecording: recording => ipcRenderer.invoke('shortcuts:recording', recording),
+  checkShortcut: value => ipcRenderer.invoke('shortcuts:check', value),
   getSettings: () => ipcRenderer.invoke('settings:get'),
   setSettings: settings => ipcRenderer.invoke('settings:set', settings),
   getResources: () => ipcRenderer.invoke('resources:list'),

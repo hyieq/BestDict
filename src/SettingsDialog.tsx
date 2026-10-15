@@ -6,9 +6,9 @@ import { useSpeech } from './useSpeech';
 import SpeechButton from './SpeechButton';
 import OCRSettings from './OCRSettings';
 import ResourceCenter from './ResourceCenter';
+import ShortcutRecorder from './ShortcutRecorder';
 
 const api = window.bestdict;
-const prettyShortcut = (value: string) => value.replace(/Control/g, 'Ctrl').replace(/Command/g, '⌘').replace(/Super/g, 'Win').replace(/\+/g, ' + ');
 const errorText = (error: unknown) => (error instanceof Error ? error.message : String(error)).replace(/^Error invoking remote method '[^']+': Error: /, '');
 
 export default function SettingsDialog({ settings, status, catalog, initialTab, onClose, onSaved, onRefresh }: {
@@ -45,6 +45,7 @@ export default function SettingsDialog({ settings, status, catalog, initialTab, 
   }, [tab]);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [shortcutIssues, setShortcutIssues] = useState<Record<string, string>>({});
   const dialogRef = useRef<HTMLDivElement>(null);
   const mounted = useRef(true);
   useEffect(() => {
@@ -65,7 +66,7 @@ export default function SettingsDialog({ settings, status, catalog, initialTab, 
   }
 
   async function save() {
-    if (saving) return;
+    if (saving || Object.values(shortcutIssues).some(Boolean)) return;
     setSaving(true); setError('');
     try { onSaved(await api.setSettings({ theme: draft.theme, locale: draft.locale, startup: draft.startup, shortcut: draft.shortcut,
       captureShortcut: draft.captureShortcut, miniShortcut: draft.miniShortcut, miniHideOnBlur: draft.miniHideOnBlur, miniRememberPosition: draft.miniRememberPosition,
@@ -152,13 +153,10 @@ export default function SettingsDialog({ settings, status, catalog, initialTab, 
           <div className="setting-row"><label htmlFor="interface-language">{t("界面语言")}</label><select id="interface-language" className="language-select" value={draft.locale} onChange={e => setDraft({ ...draft, locale: e.target.value as Settings['locale'] })}><option value="zh-CN">{t("简体中文")}</option><option value="en">English</option></select></div>
           <div className="setting-row theme-setting"><label>{t("外观主题")}</label><div className="theme-options">{([['light', t("浅色"), Sun], ['dark', t("深色"), Moon], ['system', t("跟随系统"), Command]] as const).map(([value, label, Icon]) => <button key={value} aria-pressed={draft.theme === value} className={draft.theme === value ? 'picked' : ''} onClick={() => setDraft({ ...draft, theme: value })}><Icon size={15} />{label}</button>)}</div></div>
           <div className="setting-row"><label htmlFor="startup">{t("开机自动启动")}</label><input id="startup" type="checkbox" className="switch" disabled={!settings.startupAvailable} checked={draft.startup} onChange={e => setDraft({ ...draft, startup: e.target.checked })} /></div>
-          {(['shortcut', 'miniShortcut', 'captureShortcut'] as const).filter(key => key !== 'captureShortcut' || settings.captureAvailable).map(key => <div className="setting-row shortcut-row" key={key}><label htmlFor={key}>{t(key === 'shortcut' ? "全局快捷键" : key === 'miniShortcut' ? '迷你模式快捷键' : '截图翻译快捷键')}</label><input id={key} className="shortcut-input" readOnly value={prettyShortcut(draft[key])} onKeyDown={e => {
-            if (e.key === 'Tab' || e.key === 'Escape') return;
-            e.preventDefault();
-            if (!/^[a-z0-9]$/i.test(e.key) && !/^F\d{1,2}$/.test(e.key)) return;
-            const modifiers = [e.ctrlKey && 'Control', e.altKey && 'Alt', e.shiftKey && 'Shift', e.metaKey && 'Super'].filter(Boolean);
-            if (modifiers.length) setDraft({ ...draft, [key]: [...modifiers, e.key.toUpperCase()].join('+') });
-          }} /></div>)}
+          {(['shortcut', 'miniShortcut', 'captureShortcut'] as const).filter(key => key !== 'captureShortcut' || settings.captureAvailable).map(key => <div className="setting-row shortcut-row" key={key}><label htmlFor={key}>{t(key === 'shortcut' ? "全局快捷键" : key === 'miniShortcut' ? '迷你模式快捷键' : '截图翻译快捷键')}</label><ShortcutRecorder id={key} value={draft[key]} platform={settings.platform} t={t}
+            others={(['shortcut', 'miniShortcut', ...(settings.captureAvailable ? ['captureShortcut'] : [])] as const).filter(other => other !== key).map(other => draft[other as 'shortcut' | 'miniShortcut' | 'captureShortcut'])}
+            onChange={value => setDraft(previous => ({ ...previous, [key]: value }))}
+            onIssue={issue => setShortcutIssues(previous => previous[key] === issue ? previous : { ...previous, [key]: issue })} /></div>)}
           <div className="setting-row"><label htmlFor="mini-hide">{t('迷你窗失焦后隐藏')}</label><input id="mini-hide" className="switch" type="checkbox" checked={draft.miniHideOnBlur} onChange={e => setDraft({ ...draft, miniHideOnBlur: e.target.checked })} /></div>
           <div className="setting-row"><label htmlFor="mini-position">{t('记住迷你窗位置')}</label><input id="mini-position" className="switch" type="checkbox" checked={draft.miniRememberPosition} onChange={e => setDraft({ ...draft, miniRememberPosition: e.target.checked })} /></div>
           <div className="setting-row"><label>{t("系统托盘")}</label>{settings.traySettingsAvailable && <button className="tray-settings-button" onClick={() => void api.openTraySettings().catch(e => setError(errorText(e)))}>{t("系统设置")}<ExternalLink size={12} /></button>}</div>
@@ -180,7 +178,7 @@ export default function SettingsDialog({ settings, status, catalog, initialTab, 
       </div>}
       <div className="dialog-footer"><button className="quit-button" onClick={() => api.quit()}>{t("退出 BestDict")}</button><span>v{status?.version || '0.4.3'}</span>
         <button className="update-check-button" disabled={updateBusy} onClick={() => void checkUpdate()}>{updateBusy && <LoaderCircle size={12} className="spin" />}{t(updateBusy ? '正在检查更新…' : '检查更新')}</button>
-        <button className="save-button" disabled={saving} onClick={save}>{saving ? t("正在保存…") : t("保存设置")}<Check size={15} /></button></div>
+        <button className="save-button" disabled={saving || Object.values(shortcutIssues).some(Boolean)} onClick={save}>{saving ? t("正在保存…") : t("保存设置")}<Check size={15} /></button></div>
     </div>
   </div>;
 }

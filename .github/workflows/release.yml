@@ -103,7 +103,7 @@ jobs:
       - name: Test packaged glass UI, query mode and AI menus
         run: |
           $env:BESTDICT_TEST_EXE = Join-Path $PWD 'release/win-unpacked/BestDict.exe'
-          foreach ($test in @('test:glass', 'test:query-mode', 'test:translation-ui', 'test:ai-styles', 'test:ai-menu', 'test:speech', 'test:settings', 'test:resources-ui', 'test:mini', 'test:capture')) {
+          foreach ($test in @('test:glass', 'test:query-mode', 'test:translation-ui', 'test:ai-styles', 'test:ai-menu', 'test:speech', 'test:settings', 'test:shortcuts', 'test:resources-ui', 'test:mini', 'test:capture')) {
             $log = 'release-' + $test.Replace(':', '-') + '.log'
             npm run $test 2>&1 | Tee-Object -FilePath $log
             $testExit = $LASTEXITCODE

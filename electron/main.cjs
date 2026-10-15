@@ -16,6 +16,8 @@ const { OCRService } = require('./ocr.cjs');
 const { CaptureService } = require('./capture.cjs');
 const { basicDirection } = require('./query-policy.mjs');
 const { UpdateService } = require('./updates.cjs');
+const { ShortcutManager } = require('./shortcuts.cjs');
+const { defaultShortcuts, migrateShortcuts, normalizeShortcut, formatShortcut } = require('./shortcut-policy.mjs');
 const english = require('./locales/en.json');
 
 protocol.registerSchemesAsPrivileged([{ scheme: 'bestdict', privileges: { standard: true, secure: true, supportFetchAPI: true } }]);
@@ -26,6 +28,7 @@ let speechSessions;
 let downloads;
 let quitting = false;
 let settings;
+let shortcutManager;
 let shortcutError = '';
 let miniShortcutError = '';
 let captureShortcutError = '';
@@ -51,19 +54,21 @@ function updateWindowAppearance() {
   appearance = { material, dark, reducedTransparency };
   window.webContents.send('window:appearance', appearance);
 }
-const defaults = { aiStylesVersion: 0, aiStyles: defaultStyles, aiStyleId: 'basic', startup: true, shortcut: testing ? (process.env.BESTDICT_TEST_SHORTCUT || 'Control+Shift+D') : 'Control+Shift+D', theme: 'system', locale: 'zh-CN', trayHintSeen: false, bounds: null, dictionaryId: 'ecdict', autoDictionary: true, translationEngine: 'none', translationNoticeDismissed: false };
+const defaultKeys = defaultShortcuts(process.platform);
+const defaults = { aiStylesVersion: 0, aiStyles: defaultStyles, aiStyleId: 'basic', startup: true, shortcut: testing ? (process.env.BESTDICT_TEST_SHORTCUT || 'Control+Shift+D') : defaultKeys.shortcut, theme: 'system', locale: 'zh-CN', trayHintSeen: false, bounds: null, dictionaryId: 'ecdict', autoDictionary: true, translationEngine: 'none', translationNoticeDismissed: false };
 const root = app.isPackaged ? process.resourcesPath : path.join(__dirname, '..');
 const assets = app.isPackaged ? path.join(root, 'assets') : path.join(root, 'resources');
 const updates = new UpdateService({ version: app.getVersion(), openExternal: url => shell.openExternal(url) });
 
 function loadSettings() {
-  Object.assign(defaults, { captureShortcut: testing ? 'Control+Alt+Shift+F8' : 'Alt+Shift+S', miniShortcut: testing ? 'Control+Alt+Shift+F9' : 'Alt+Shift+D', miniHideOnBlur: true, miniRememberPosition: true, miniBounds: null });
+  Object.assign(defaults, { captureShortcut: testing ? 'Control+Alt+Shift+F8' : defaultKeys.captureShortcut, miniShortcut: testing ? 'Control+Alt+Shift+F9' : defaultKeys.miniShortcut, miniHideOnBlur: true, miniRememberPosition: true, miniBounds: null });
   settingsPath = path.join(app.getPath('userData'), 'settings.json');
   try { settings = { ...defaults, ...JSON.parse(fs.readFileSync(settingsPath, 'utf8')) }; }
   catch {
     try { settings = { ...defaults, ...JSON.parse(fs.readFileSync(path.join(app.getPath('appData'), 'BestDic', 'settings.json'), 'utf8')) }; }
     catch { settings = { ...defaults }; }
   }
+  settings = migrateShortcuts(settings, process.platform);
   if (typeof settings.autoDictionary !== 'boolean') settings.autoDictionary = true;
   if (typeof settings.translationNoticeDismissed !== 'boolean') settings.translationNoticeDismissed = false;
   try { settings.speech = validateSpeech(settings.speech); } catch { settings.speech = defaultSpeech; }
@@ -96,12 +101,12 @@ function stopSpeechPlayers(except) {
 }
 
 function publicSettings() {
-  return { ...settings, shortcutError, miniShortcutError, captureShortcutError, captureAvailable: process.platform === 'win32', startupAvailable: app.isPackaged && ['win32', 'darwin'].includes(process.platform), traySettingsAvailable: process.platform === 'win32' };
+  return { ...settings, platform: process.platform, shortcutError, miniShortcutError, captureShortcutError, captureAvailable: process.platform === 'win32', startupAvailable: app.isPackaged && ['win32', 'darwin'].includes(process.platform), traySettingsAvailable: process.platform === 'win32' };
 }
 
 function updateTray() {
   if (!tray || tray.isDestroyed()) return;
-  tray.setToolTip(`BestDict · ${settings.shortcut.replace(/Control/g, 'Ctrl')}`);
+  tray.setToolTip(`BestDict · ${formatShortcut(settings.shortcut, process.platform)}`);
   trayMenu = Menu.buildFromTemplate([
     { label: nativeText('打开 BestDict'), click: reveal },
     { label: nativeText('迷你模式'), click: () => showMode(true) },
@@ -188,8 +193,14 @@ function toggle() {
   else reveal();
 }
 
-function registerShortcut(shortcut) {
-  try { return globalShortcut.register(shortcut, toggle); } catch { return false; }
+function syncShortcutErrors() {
+  shortcutError = shortcutManager?.errors.shortcut || '';
+  miniShortcutError = shortcutManager?.errors.miniShortcut || '';
+  captureShortcutError = shortcutManager?.errors.captureShortcut || '';
+}
+function restoreShortcuts() {
+  if (quitting || !shortcutManager) return;
+  shortcutManager.resume(); syncShortcutErrors();
 }
 
 function toggleMini() {
@@ -250,6 +261,14 @@ function activateFirstTranslation(id) {
 }
 
 function setupIPC() {
+  handle('shortcuts:recording', recording => {
+    if (typeof recording !== 'boolean') throw new Error('快捷键录制状态无效。');
+    if (recording) { if (!window.isFocused()) throw new Error('请先激活快捷键输入框。'); shortcutManager.suspend(); }
+    else restoreShortcuts();
+    syncShortcutErrors();
+    return { recording: shortcutManager.suspended, errors: shortcutManager.errors };
+  });
+  handle('shortcuts:check', value => shortcutManager.check(value));
   handle('ocr:status', () => ocr.status());
   handle('ocr:install', () => { if (downloads.active) throw new Error('请先暂停下载或安装。'); return ocr.install(); });
   handle('ocr:cancel', () => ocr.cancelDownload());
@@ -343,31 +362,17 @@ function setupIPC() {
         next[key] = changes[key];
       }
     }
-    if ('shortcut' in changes || 'miniShortcut' in changes || 'captureShortcut' in changes) {
-      // Reserve new bindings before releasing either old binding, with rollback on conflict.
-      const acquired = [];
-      try {
-        const bindings = [['shortcut', toggle], ['miniShortcut', toggleMini], ...(process.platform === 'win32' ? [['captureShortcut', startCapture]] : [])];
-        for (const [key, callback] of bindings) {
-          const value = changes[key] ?? settings[key];
-          if (typeof value !== 'string' || !/^(?:(?:Control|Command|Alt|Shift|Super)\+){1,3}(?:[A-Z0-9]|F(?:[1-9]|1[0-9]|2[0-4]))$/.test(value)) throw new Error('请使用例如 Control+Shift+D 的快捷键格式。');
-          if (bindings.some(([other]) => other !== key && value === (changes[other] ?? settings[other]))) throw new Error('两个快捷键不能相同。');
-          if (value !== settings[key] || ({ shortcut: shortcutError, miniShortcut: miniShortcutError, captureShortcut: captureShortcutError })[key]) {
-            if (!globalShortcut.register(value, callback)) throw new Error('这个快捷键已被其他程序占用，请换一个组合。');
-            acquired.push([key, value]);
-          }
-          next[key] = value;
-        }
-      } catch (error) { for (const [, value] of acquired) globalShortcut.unregister(value); throw error; }
-      for (const [key, value] of acquired) if (settings[key] !== value) globalShortcut.unregister(settings[key]);
-      shortcutError = ''; miniShortcutError = ''; captureShortcutError = '';
+    const shortcutChange = ['shortcut', 'miniShortcut', 'captureShortcut'].some(key => key in changes);
+    if (shortcutChange) {
+      for (const key of ['shortcut', 'miniShortcut', ...(process.platform === 'win32' ? ['captureShortcut'] : [])]) next[key] = normalizeShortcut(changes[key] ?? settings[key], process.platform);
+      shortcutManager.configure(next); syncShortcutErrors();
     }
     if (app.isPackaged && ['win32', 'darwin'].includes(process.platform) && !testing && next.startup !== settings.startup) {
       app.setLoginItemSettings({ openAtLogin: next.startup, path: process.execPath, name: 'BestDict', args: ['--hidden'] });
     }
     const changedEngine = next.translationEngine !== settings.translationEngine;
     if (changedEngine) { translator.stop(); hy.cancel(); capture?.cancelWork(); }
-    saveSettings(next);
+    try { saveSettings(next); } catch (error) { if (shortcutChange) { shortcutManager.configure(settings, { partial: true }); syncShortcutErrors(); } throw error; }
     if (changedEngine) capture?.publish({ engines: capture.engines() });
     if ('speech' in changes) { speechSessions.cancel(); stopSpeechPlayers(); updateSpeechStandby(); }
     if ('theme' in changes) {
@@ -597,11 +602,12 @@ else {
     tray.on('click', reveal);
     tray.on('double-click', reveal);
     tray.on('balloon-click', reveal);
-    if (!registerShortcut(settings.shortcut)) shortcutError = `${settings.shortcut} 已被占用，请在设置中更换。`;
-    try { if (!globalShortcut.register(settings.miniShortcut, toggleMini)) miniShortcutError = `${settings.miniShortcut} 已被占用，请在设置中更换。`; }
-    catch { miniShortcutError = `${settings.miniShortcut} 已被占用，请在设置中更换。`; }
-    try { if (process.platform === 'win32' && !globalShortcut.register(settings.captureShortcut, startCapture)) captureShortcutError = `${settings.captureShortcut} 已被占用，请在设置中更换。`; }
-    catch { captureShortcutError = `${settings.captureShortcut} 已被占用，请在设置中更换。`; }
+    shortcutManager = new ShortcutManager(globalShortcut, { shortcut: toggle, miniShortcut: toggleMini, ...(process.platform === 'win32' ? { captureShortcut: startCapture } : {}) }, process.platform);
+    shortcutManager.configure(settings, { partial: true }); syncShortcutErrors();
+    for (const event of ['blur', 'hide', 'closed']) window.on(event, restoreShortcuts);
+    window.webContents.on('did-start-navigation', restoreShortcuts);
+    window.webContents.on('render-process-gone', restoreShortcuts);
+
     if (app.isPackaged && !testing && ['win32', 'darwin'].includes(process.platform)) {
       if (process.platform === 'win32') app.setLoginItemSettings({ openAtLogin: false, name: 'BestDic' });
       app.setLoginItemSettings({ openAtLogin: settings.startup, path: process.execPath, name: 'BestDict', args: ['--hidden'] });
@@ -619,5 +625,5 @@ app.on('will-quit', () => { globalShortcut.unregisterAll(); tray?.destroy(); });
 // Native tray interaction is exercised by Playwright in an isolated test process.
 if (testing) globalThis.__bestdictNative = { getTray: () => tray, getTrayMenu: () => trayMenu,
   toggleMini, toggleMain: toggle,
-  getServices: () => ({ resources, translator, hy, speech, ocr, capture, captureTranslator, captureHy, updates, downloads }),
+  getServices: () => ({ shortcutManager, resources, translator, hy, speech, ocr, capture, captureTranslator, captureHy, updates, downloads }),
   readSettings: () => JSON.parse(fs.readFileSync(settingsPath, 'utf8')) };

@@ -21,7 +21,7 @@ test('uninstalled HY model gives an actionable error without starting a process'
   hy.stop();
 });
 
-const model = path.resolve('.cache/validation-library/hy-mt2/Hy-MT2-1.8B-Q4_K_M.gguf');
+const model = path.resolve(process.env.BESTDICT_TEST_HY_MODEL || '.cache/validation-library/hy-mt2/Hy-MT2-1.8B-Q4_K_M.gguf');
 test('real MT2 styles and polishing preserve the report deadline', { skip: process.env.BESTDICT_REAL_ASSETS !== '1' || !fs.existsSync(model), timeout: 120000 }, async () => {
   const { defaultStyles } = require('../electron/ai-options.cjs');
   const hy = new HyTranslator({ executable: path.resolve('runtime/llama/llama-server.exe'), modelFile: () => model, isReady: () => true });
@@ -60,5 +60,25 @@ test('real HY CPU inference, multilingual translation and caching', { skip: proc
     assert.match(backward.text.toLowerCase(), /dictionary/);
     const cached = await hy.translate('我想做一个简单好用的词典软件。', 'zh-en', 'zh');
     assert.equal(cached.cached, true);
+  } finally { hy.stop(); }
+});
+
+
+test('real MT2 keeps the requested language for every preset, auto/explicit routing and Chinese polish instructions', { skip: process.env.BESTDICT_REAL_TRANSLATION !== '1' || !fs.existsSync(model), timeout: 120000 }, async () => {
+  const { defaultStyles } = require('../electron/ai-options.cjs');
+  const hy = new HyTranslator({ executable: path.resolve('runtime/llama/llama-server.exe'), modelFile: () => model, isReady: () => true });
+  try {
+    const chinese = '没有什么能够阻挡，我对自由的向往';
+    for (const style of defaultStyles) {
+      const options = { styleName: style.name, stylePrompt: style.prompt };
+      const translated = await hy.translate(chinese, 'auto', 'en', options);
+      assert.match(translated.text, /freedom/i); assert.doesNotMatch(translated.text, /[\u3400-\u9fff]/);
+      const explicit = await hy.translate(chinese, 'zh-en', 'en', options); assert.equal(explicit.text, translated.text); assert.equal(explicit.cached, true);
+      const polished = await hy.translate(chinese, 'zh-en', 'en', { ...options, polishPrompt: '正式一些，保留原意，保持简洁。', previousText: translated.text });
+      assert.match(polished.text, /freedom/i); assert.doesNotMatch(polished.text, /[\u3400-\u9fff]/);
+      const reversed = await hy.translate('Please send me the report before Friday.', 'en-zh', 'en', options);
+      assert.match(reversed.text, /报告/); assert.match(reversed.text, /周五|星期五/);
+      console.log(JSON.stringify({ style: style.name, english: translated.text, polished: polished.text, chinese: reversed.text, notice: translated.notice }));
+    }
   } finally { hy.stop(); }
 });

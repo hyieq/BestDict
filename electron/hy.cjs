@@ -1,4 +1,4 @@
-const { buildPrompt, buildRewritePrompt, translationOptions, defaultStyles } = require('./ai-options.cjs');
+const { buildPrompt, buildRewritePrompt, translationOptions, defaultStyles, matchesTargetLanguage } = require('./ai-options.cjs');
 const { spawn } = require('node:child_process');
 const { createServer } = require('node:net');
 const { randomBytes } = require('node:crypto');
@@ -82,7 +82,7 @@ class HyTranslator {
     const { forceRefresh, ...normalized } = translationOptions(options);
     const key = JSON.stringify([text, route.direction, normalized]);
     try {
-      if (!forceRefresh && this.cache.has(key)) return { text: this.cache.get(key), direction: route.direction, targetLanguage: route.targetName, cached: true, engine: 'Hy-MT2' };
+      if (!forceRefresh && this.cache.has(key)) return { ...this.cache.get(key), direction: route.direction, targetLanguage: route.targetName, cached: true, engine: 'Hy-MT2' };
       await this.start();
       if (controller.signal.aborted) throw new Error('请求已取消');
       const generate = async content => {
@@ -102,18 +102,29 @@ class HyTranslator {
       if (controller.signal.aborted) throw new Error('请求已取消');
       return translated;
       };
-      let translated;
-      if (normalized.polishPrompt && normalized.previousText) {
-        translated = await generate(buildRewritePrompt(text, route.targetName, normalized.previousText, normalized));
-      } else {
-        translated = await generate(buildPrompt(text, route.targetName, {}));
-        if (normalized.stylePrompt && normalized.stylePrompt !== defaultStyles[0].prompt) {
-          translated = await generate(buildRewritePrompt(text, route.targetName, translated, normalized));
-        }
+      const valid = output => matchesTargetLanguage(output, route.target);
+      const basicTranslation = async () => {
+        let output = await generate(buildPrompt(text, route.targetName, {}));
+        if (!valid(output)) output = await generate(`Translate the following text into ${targetNames[route.target]} only. Do not copy or paraphrase it in its original language. Output only the translation.\n${text}\nOutput language: ${targetNames[route.target]}`);
+        if (!valid(output)) throw new Error('模型未返回目标语言的译文，请重新翻译。');
+        return output;
+      };
+      let translated, notice = '', styleApplied = true;
+      const rewrite = normalized.polishPrompt || (normalized.stylePrompt && normalized.stylePrompt !== defaultStyles[0].prompt);
+      const base = normalized.polishPrompt && normalized.previousText && valid(normalized.previousText) ? normalized.previousText : await basicTranslation();
+      translated = base;
+      if (rewrite) {
+        const rewritten = await generate(buildRewritePrompt(text, route.targetName, base, normalized));
+        if (valid(rewritten)) translated = rewritten;
+        else { notice = '风格或润色结果语言有误，已保留原目标语言译文。'; styleApplied = false; }
       }
-      this.cache.set(key, translated);
-      if (this.cache.size > 128) this.cache.delete(this.cache.keys().next().value);
-      return { text: translated, direction: route.direction, targetLanguage: route.targetName, cached: false, engine: 'Hy-MT2' };
+      // Failed rewrites are not cached, so retrying can recover rather than replaying a bad result.
+      if (styleApplied) {
+        this.cache.set(key, { text: translated, styleApplied });
+        if (this.cache.size > 128) this.cache.delete(this.cache.keys().next().value);
+      }
+      return { text: translated, direction: route.direction, targetLanguage: route.targetName, cached: false, engine: 'Hy-MT2', styleApplied, notice };
+
     } finally {
       if (this.controller === controller) {
         this.controller = null;

@@ -5,6 +5,7 @@ import SettingsDialog from './SettingsDialog';
 import appIcon from './assets/app-icon.png';
 import { createTranslator } from './i18n';
 import type { Direction, LookupResult, Mode, Settings, Status, Translation, ResourceCatalog, AIOptions } from './types';
+import { formatShortcut } from '../electron/shortcut-policy.mjs';
 import { isSentence } from '../electron/query-policy.mjs';
 import { useSpeech } from './useSpeech';
 import SpeechButton from './SpeechButton';
@@ -19,7 +20,6 @@ const languageExamples: Record<string, string[]> = { es: ['hola', 'gracias', 'ma
 function errorText(error: unknown) {
   return (error instanceof Error ? error.message : String(error)).replace(/^Error invoking remote method '[^']+': Error: /, '');
 }
-function prettyShortcut(value: string) { return value.replace(/Control/g, 'Ctrl').replace(/Command/g, '⌘').replace(/Super/g, 'Win').replace(/\+/g, ' + '); }
 
 export default function App() {
   const [windowMode, setWindowMode] = useState({ mini: false, pinned: false });
@@ -55,6 +55,9 @@ export default function App() {
   const currentEntry = lookup.entries[selected];
   const activeStyle = settings?.aiStyles.find(s => s.id === settings.aiStyleId);
   const useHy = settings?.translationEngine === 'hy';
+  const mac = settings?.platform === 'darwin';
+  const translateShortcut = mac ? '⌘ + Enter' : 'Ctrl + Enter';
+  const prettyShortcut = (value: string) => formatShortcut(value, settings?.platform || 'win32');
   const speech = useSpeech();
   useEffect(() => { speech.stop(); }, [query, selected, translation, busy, mode, direction, settingsOpen, settings?.dictionaryId, speech.stop]);
   const activeDictionary = catalog?.dictionaries.find(item => item.id === settings?.dictionaryId);
@@ -196,8 +199,9 @@ export default function App() {
         const options = nextOptions.current; nextOptions.current = {};
         const translated = await api.translate(text, direction, id, options);
         if (!active || id !== revision.current) return;
-        if (options.forceRefresh && translation?.text === translated.text) setNotice('已重新生成，模型返回了相同译文。可尝试更具体的用词或句式要求。');
-        setTranslation({ ...translated, styleName: useHy ? activeStyle?.name : undefined, polished: !!options.polishPrompt });
+        if (translated.notice) setNotice(translated.notice);
+        else if (options.forceRefresh && translation?.text === translated.text) setNotice('已重新生成，模型返回了相同译文。可尝试更具体的用词或句式要求。');
+        setTranslation({ ...translated, styleName: useHy ? translated.styleApplied === false ? '基本' : activeStyle?.name : undefined, polished: !!options.polishPrompt && translated.styleApplied !== false });
       } catch (e) {
         if (active && id === revision.current) setError(errorText(e));
       } finally {
@@ -209,14 +213,14 @@ export default function App() {
 
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
-      if (event.isComposing || composing) return;
+      if (event.isComposing || composing || (event.target as HTMLElement)?.matches?.('[data-shortcut-recorder]')) return;
       if (mini && event.target === input.current && event.key === 'Enter') { event.preventDefault(); translateNow(); return; }
       if (event.key === 'Escape') {
         event.preventDefault();
         if (settingsOpen) { setSettingsOpen(false); input.current?.focus(); }
         else api?.hide();
       }
-      if (event.key === 'Enter' && (event.ctrlKey || event.metaKey) && !settingsOpen) {
+      if (event.key === 'Enter' && (mac ? event.metaKey : event.ctrlKey) && !settingsOpen) {
         event.preventDefault(); translateNow();
       }
       if (event.target === input.current && resolvedMode === 'dictionary' && lookup.entries.length) {
@@ -233,7 +237,7 @@ export default function App() {
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [query, mini, mode, composing, settingsOpen, resolvedMode, lookup, selected]);
+  }, [query, mini, mode, composing, settingsOpen, resolvedMode, lookup, selected, mac]);
 
   useEffect(() => {
     document.getElementById(`candidate-${selected}`)?.scrollIntoView({ block: 'nearest' });
@@ -325,8 +329,8 @@ export default function App() {
             {query && <button className="icon-button clear-button" title={t("清空")} aria-label={t("清空")} onClick={() => setQueryAndFocus('')}><X size={16} /></button>}
           </div>
         </div>
-        <div className="ai-button-group sentence-button-group"><button className="ai-trigger" aria-label={t(busy ? '取消翻译' : '翻译')} aria-keyshortcuts="Control+Enter" title="Ctrl + Enter" disabled={!query.trim() || composing} onClick={() => busy ? cancelTranslation() : translateNow({ forceRefresh: true })}>
-          {busy ? <LoaderCircle size={24} className="spin" /> : useHy ? <Sparkles size={24} /> : <ArrowLeftRight size={24} />}{t(busy ? '取消翻译' : '翻译')}
+        <div className="ai-button-group sentence-button-group"><button className="ai-trigger" aria-label={t(busy ? '取消翻译' : '翻译')} aria-keyshortcuts={mac ? 'Meta+Enter' : 'Control+Enter'} title={translateShortcut} disabled={!query.trim() || composing} onClick={() => busy ? cancelTranslation() : translateNow({ forceRefresh: true })}>
+          {busy ? <LoaderCircle size={24} className="spin" /> : useHy ? <Sparkles size={24} /> : <ArrowLeftRight size={24} />}<span className="translate-button-label">{t(busy ? '取消翻译' : '翻译')}{!busy && <small className="translate-key-hint">{translateShortcut}</small>}</span>
         </button><div className="sentence-engine-picker"><select aria-label={t('句子翻译方案')} value={settings?.translationEngine || 'none'} onChange={e => void chooseEngine(e.target.value)}>
           <option value="none">{t('选择翻译方案')}</option><option value="argos">{t('基础翻译')}{!catalog?.argos.ready ? ' · ' + t('下载') : ''}</option><option value="hy">{t('混元 AI')}{!catalog?.hy.ready ? ' · ' + t('下载') : ''}</option><option value="downloads">{t('管理模型…')}</option>
         </select><ChevronDown size={12} /></div></div>
@@ -341,7 +345,7 @@ export default function App() {
             {(['auto', 'en-zh', 'zh-en', ...(useHy ? ['es-zh', 'zh-es', 'ja-zh', 'zh-ja', 'ko-zh', 'zh-ko', 'fr-zh', 'zh-fr'] : [])]).map((value, index) => <option key={value} value={value}>{t(['自动识别语言', '英文 → 中文', '中文 → 英文', '西班牙语 → 中文', '中文 → 西班牙语', '日语 → 中文', '中文 → 日语', '韩语 → 中文', '中文 → 韩语', '法语 → 中文', '中文 → 法语'][index])}</option>)}
             </select><ChevronDown size={12} /></div>}
           {mode !== 'translate' && <label className="auto-dictionary" title={t("在已安装词库中自动匹配；关闭后只查当前词库。")}>{t("自动匹配词库")}<input type="checkbox" aria-label={t("自动匹配词库")} checked={settings?.autoDictionary ?? true} onChange={e => { void quickSettings({ autoDictionary: e.target.checked }); }} /></label>}
-          {useHy && <div className="sentence-style"><AIStylePicker settings={settings} onSaved={next => {
+          {useHy && <div className="sentence-style"><span className="style-caption">{t('翻译风格')}</span><AIStylePicker settings={settings} onSaved={next => {
             const style = next.aiStyles.find(item => item.id === next.aiStyleId);
             if (style?.id !== activeStyle?.id || style?.prompt !== activeStyle?.prompt) { invalidate(true); nextOptions.current = { forceRefresh: true }; }
             savedSettings(next);
@@ -370,7 +374,7 @@ export default function App() {
                 {useHy && <details className="translation-more"><summary>{t('润色译文')}</summary><div className="ai-polish"><label htmlFor="polish-prompt">{t('自定义润色提示词')}</label><input type="text" id="polish-prompt" value={polishPrompt} maxLength={1000} placeholder={t('例如：更像日常聊天，简短一点，保留关键细节。')} onChange={e => setPolishPrompt(e.target.value)} /><button className="secondary-button" disabled={busy || !polishPrompt.trim()} onClick={() => translateNow({ polishPrompt: polishPrompt.trim(), forceRefresh: true })}>{t('润色并刷新')}</button></div></details>}
               </>}
               {notice && <p className="quality-note" role="status">{t(notice)}</p>}
-              {!translation && !busy && !notice && !error && <div className="no-results"><ArrowLeftRight size={25} /><h3>{t('准备翻译')}</h3><p>{t('继续输入，或按 Ctrl + Enter 立即翻译。')}</p></div>}
+              {!translation && !busy && !notice && !error && <div className="no-results"><ArrowLeftRight size={25} /><h3>{t('准备翻译')}</h3><p>{t('继续输入，或按 {shortcut} 立即翻译。', { shortcut: translateShortcut })}</p></div>}
             </>}
 
           </div> : <>

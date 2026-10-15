@@ -8,6 +8,7 @@ export type Mode = 'auto' | 'dictionary' | 'translate';
 export interface AIStyle { id: string; name: string; prompt: string }
 export interface AIOptions { forceRefresh?: boolean; styleName?: string; stylePrompt?: string; polishPrompt?: string; previousText?: string }
 export interface Settings {
+  platform: string;
   captureShortcut: string; captureShortcutError: string;
   miniShortcut: string; miniShortcutError: string; miniHideOnBlur: boolean; miniRememberPosition: boolean;
   speech: SpeechSettings;
@@ -19,7 +20,7 @@ export interface Settings {
 }
 export interface Status { version: string; dictionaryCount: number; modelReady: boolean; error: string; shortcutError: string; dictionaryName: string; engine: string }
 export interface UpdateStatus { state: 'latest' | 'available' | 'unavailable' | 'unpublished'; currentVersion: string; latestVersion: string | null }
-export interface Translation { text: string; direction: string; cached: boolean; engine: string; targetLanguage?: string; styleName?: string; polished?: boolean }
+export interface Translation { text: string; direction: string; cached: boolean; engine: string; targetLanguage?: string; styleName?: string; polished?: boolean; notice?: string; styleApplied?: boolean }
 export interface DictionaryInfo {
   id: string; name: string; languageName: string; languageCode: string; example: string;
   installed: boolean; builtIn: boolean; count: number; source: string; license: string; homepage: string;
@@ -72,6 +73,8 @@ export interface DesktopAPI {
   status(): Promise<Status>;
   checkForUpdates(): Promise<UpdateStatus>;
   openUpdatePage(target: 'release' | 'download'): Promise<void>;
+  setShortcutRecording(recording: boolean): Promise<{ recording: boolean; errors: Record<string, string> }>;
+  checkShortcut(value: string): Promise<string>;
   getSettings(): Promise<Settings>;
   setSettings(settings: Partial<Settings>): Promise<Settings>;
   getResources(): Promise<ResourceCatalog>;

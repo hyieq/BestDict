@@ -1,5 +1,20 @@
 # Testing
 
+## 翻译语言与快捷键录制
+
+`node --test tests/ai-options.test.cjs tests/shortcuts.test.cjs` 验证明显输出语种错误的
+有界重试、风格/润色失败回退与不缓存、平台默认键、旧 Mac 默认值迁移与自定义值保留，
+以及全局注册的暂停、恢复、重复与占用回滚。语种校验只识别明显脚本不符，不用于区分英/西/法等同字母语言。
+
+`npm run test:shortcuts` 通过实际 Electron IPC 和原生注册状态验证实时按键反馈、录入旧绑定不会隐藏窗口、
+非法/重复/外部占用提示、Esc 撤销、Tab 切换、保存才应用、关闭/失焦/重载恢复。
+该测试使用隔离配置及独立组合，不操作已安装客户端。Mac 默认主窗口为 Command+Shift+D，
+迷你模式为 Command+Shift+E；Windows 默认不变。
+
+真实模型回归：设置 `BESTDICT_REAL_TRANSLATION=1` 及 `BESTDICT_TEST_HY_MODEL` 指向已有 MT2 GGUF 后，
+运行 `node --test tests/hy.test.cjs`。验证用户报告的中文原句、全部四种风格、自动/明确方向共用正确缓存，
+中文润色要求及英文→中文。不会下载模型。`BESTDICT_PREVIEW_CHINESE=1` 可使预览脚本使用该中文→英文专业风格样例。
+
 ## 模型与词库中心
 
 `npm run test:resources-ui` 使用隔离客户端和本地 HTTP fixture，验证四个设置标签、

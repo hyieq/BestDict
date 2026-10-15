@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import assert from 'node:assert/strict';
 const source = process.env.BESTDICT_PREVIEW_HY;
+const chinese = process.env.BESTDICT_PREVIEW_CHINESE === '1';
 if (!source) throw new Error('Set BESTDICT_PREVIEW_HY to an existing hy-mt2 model directory.');
 const library = await mkdtemp(path.join(os.tmpdir(), 'bestdict-translation-preview-'));
 const target = path.join(library, 'hy-mt2');
@@ -17,16 +18,17 @@ try {
   const page = await desktop.firstWindow();
   await page.getByText('离线资源已就绪').waitFor();
   assert.equal((await page.evaluate(() => window.bestdict.getResources())).hy.ready, true);
-  await page.evaluate(() => window.bestdict.setSettings({ translationEngine: 'hy', theme: 'light', translationNoticeDismissed: true }));
+  await page.evaluate(chinese => window.bestdict.setSettings({ translationEngine: 'hy', aiStyleId: chinese ? 'professional' : 'basic', theme: 'light', translationNoticeDismissed: true }), chinese);
   await desktop.evaluate(({ BrowserWindow }) => { const win = BrowserWindow.getAllWindows()[0]; win.setSize(1020, 720); win.webContents.setZoomFactor(1); });
   await page.reload();
   const input = page.getByRole('textbox', { name: '输入单词或句子' });
-  const sentence = 'Learning a language opens a new world.';
+  const sentence = chinese ? '没有什么能够阻挡，我对自由的向往' : 'Learning a language opens a new world.';
   const started = Date.now();
   await input.fill(sentence);
   await page.getByTestId('translation-result').waitFor({ timeout: 180000 });
   const result = await page.getByTestId('translation-result').innerText();
-  assert.match(result, /语言/); assert.match(result, /世界/);
+  if (chinese) { assert.match(result, /freedom/i); assert.doesNotMatch(result, /[\u3400-\u9fff]/); }
+  else { assert.match(result, /语言/); assert.match(result, /世界/); }
   console.log(JSON.stringify({ realInference: true, result, elapsedMs: Date.now() - started }));
   await input.fill(''); await input.fill(sentence);
   await page.getByTestId('translation-result').waitFor();

@@ -1,0 +1,60 @@
+import { _electron as electron } from 'playwright';
+import assert from 'node:assert/strict';
+import { mkdir, writeFile } from 'node:fs/promises';
+import path from 'node:path';
+const env = { ...process.env, BESTDICT_TEST: '1', BESTDICT_TEST_SHORTCUT: 'Control+Alt+Shift+F10' }; delete env.ELECTRON_RUN_AS_NODE; delete env.BESTDICT_LIBRARY;
+const executablePath = process.env.BESTDICT_TEST_EXE;
+const desktop = await electron.launch({ args: executablePath ? [] : ['.'], executablePath, env });
+const output = path.resolve('test-results/shortcuts'); await mkdir(output, { recursive: true });
+try {
+  const page = await desktop.firstWindow(), errors = []; page.on('pageerror', error => errors.push(error.message));
+  await page.getByText('离线资源已就绪').waitFor();
+  await page.locator('.translate-key-hint').getByText(process.platform === 'darwin' ? '⌘ + Enter' : 'Ctrl + Enter', { exact: true }).waitFor();
+  const original = await page.evaluate(() => window.bestdict.getSettings());
+  const registered = value => desktop.evaluate(({ globalShortcut }, value) => globalShortcut.isRegistered(value), value);
+  const recording = () => desktop.evaluate(() => globalThis.__bestdictNative.getServices().shortcutManager.suspended);
+  async function open() { await page.getByRole('button', { name: '设置', exact: true }).click(); }
+  const field = page.locator('#shortcut'), save = page.getByRole('button', { name: '保存设置', exact: true });
+  async function begin() { await field.focus(); await page.locator('#shortcut[data-recording="true"]').waitFor(); assert.equal(await recording(), true); assert.equal(await registered(original.shortcut), false); assert.equal(await registered(original.miniShortcut), false); }
+  async function chord(key) { await page.keyboard.down('Control'); await page.keyboard.down('Alt'); await page.keyboard.down('Shift'); await page.keyboard.press(key); await page.keyboard.up('Shift'); await page.keyboard.up('Alt'); await page.keyboard.up('Control'); }
+  await open(); await begin();
+  await page.keyboard.down('Control'); assert.match(await field.inputValue(), /Ctrl|⌃/);
+  await page.keyboard.down('Alt'); assert.match(await field.inputValue(), /Alt|⌥/);
+  await page.keyboard.down('Shift'); await page.keyboard.press('F10');
+  await page.keyboard.up('Shift'); await page.keyboard.up('Alt'); await page.keyboard.up('Control');
+  await page.waitForFunction(() => !document.querySelector('.save-button')?.disabled);
+  assert.equal(await desktop.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].isVisible()), true);
+  assert.equal(await page.getByRole('dialog').count(), 1, 'Recording the existing binding does not hide the client.');
+  await page.keyboard.press('Escape'); assert.equal(await page.getByRole('dialog').count(), 1); assert.equal(await registered(original.shortcut), true);
+  await begin(); await page.keyboard.press('x'); await page.getByRole('alert').filter({ hasText: '修饰键' }).waitFor(); assert.equal(await save.isDisabled(), true);
+  await page.keyboard.press('Control+Enter'); await page.getByRole('alert').filter({ hasText: '修饰键' }).waitFor(); assert.equal(await page.getByTestId('translation-result').count(), 0);
+  await page.keyboard.press('Escape'); await begin(); await chord('F9');
+  await page.getByRole('alert').filter({ hasText: '已用于其他功能' }).waitFor(); assert.equal(await save.isDisabled(), true);
+  await page.screenshot({ path: path.join(output, 'duplicate.png') }); await page.keyboard.press('Escape');
+  await desktop.evaluate(({ globalShortcut }) => { if (!globalShortcut.register('Control+Alt+Shift+F12', () => {})) throw new Error('Test conflict binding unavailable'); });
+  await begin(); await chord('F12'); await page.getByRole('alert').filter({ hasText: '已被其他程序占用' }).waitFor();
+  assert.equal(await page.evaluate(() => window.bestdict.getSettings().then(s => s.shortcut)), original.shortcut);
+  await page.keyboard.press('Escape'); await desktop.evaluate(({ globalShortcut }) => globalShortcut.unregister('Control+Alt+Shift+F12'));
+  await begin(); await chord('F11'); await page.waitForFunction(() => !document.querySelector('.save-button')?.disabled);
+  assert.equal(await page.evaluate(() => window.bestdict.getSettings().then(s => s.shortcut)), original.shortcut, 'Recording is only a draft.');
+  await page.locator('#settings-title').click(); assert.equal(await registered(original.shortcut), true); assert.equal(await registered('Control+Alt+Shift+F11'), false);
+  await save.click(); await page.getByRole('dialog').waitFor({ state: 'detached' });
+  assert.equal(await registered('Control+Alt+Shift+F11'), true); assert.equal(await registered(original.shortcut), false);
+  assert.equal(await desktop.evaluate(() => globalThis.__bestdictNative.readSettings().shortcut), 'Control+Alt+Shift+F11');
+  await open(); await field.focus(); await page.locator('#shortcut[data-recording="true"]').waitFor();
+  await page.keyboard.press('Tab'); await page.locator('#miniShortcut[data-recording="true"]').waitFor(); assert.equal(await recording(), true);
+  await page.getByRole('button', { name: '关闭设置', exact: true }).click(); assert.equal(await registered('Control+Alt+Shift+F11'), true);
+  await open(); await field.focus(); await page.locator('#shortcut[data-recording="true"]').waitFor();
+  await desktop.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].emit('blur'));
+  assert.equal(await registered('Control+Alt+Shift+F11'), true, 'Native blur also restores registrations independently of the renderer.');
+  await page.evaluate(() => window.dispatchEvent(new Event('blur'))); assert.equal(await registered('Control+Alt+Shift+F11'), true);
+  await field.focus(); await page.locator('#shortcut[data-recording="true"]').waitFor(); await page.reload();
+  await page.getByText('离线资源已就绪').waitFor(); assert.equal(await registered('Control+Alt+Shift+F11'), true);
+  await open(); await field.focus(); await page.locator('#shortcut[data-recording="true"]').waitFor(); await chord('F11');
+  await page.waitForFunction(() => !document.querySelector('.save-button')?.disabled);
+  await page.screenshot({ path: path.join(output, 'recording.png') });
+  await page.keyboard.press('Escape'); await page.getByRole('button', { name: '关闭设置', exact: true }).click();
+  assert.deepEqual(errors, []);
+  await writeFile(path.join(output, 'report.json'), JSON.stringify({ passed: true, checks: ['platform trigger hint', 'live modifier feedback', 'native suspension', 'same binding does not hide', 'invalid keys', 'duplicate detection', 'external occupancy', 'Escape rollback', 'draft/save separation', 'Tab between recorders', 'close/blur/reload restoration'] }, null, 2));
+  console.log('Shortcut UI passed: recording feedback, suspension, validation, conflicts, draft/save and restoration.');
+} finally { await desktop.close(); }

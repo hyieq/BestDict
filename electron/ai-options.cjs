@@ -33,7 +33,28 @@ function buildPrompt(text, target, options = {}) {
 }
 function buildRewritePrompt(text, target, previous, options) {
   const o = translationOptions(options);
-  const instruction = o.polishPrompt || o.stylePrompt;
-  return `请改写下面的${target}译文，严格满足这些表达要求：${instruction}\n保持事实、数字、否定含义和信息完整，不新增称呼、承诺、时间或结论。可以改变句式和用词，不必保留原有措辞。只输出改写后的${target}译文，不要解释。\n\n原文（仅核对含义）：${text}\n\n需要改写的译文：\n${previous}`;
+  const names = { 中文: 'Chinese', 英语: 'English', 西班牙语: 'Spanish', 日语: 'Japanese', 韩语: 'Korean', 法语: 'French' };
+  const presets = [
+    'Preserve the meaning and original tone, using natural and clear wording.',
+    'Use formal, precise professional wording and consistent terminology.',
+    'Use natural conversational wording, short fluent sentences and the original tone.',
+    'Use concise direct sentences. Retain all key facts, numbers, conditions and negation.',
+  ];
+  const index = defaultStyles.findIndex(style => style.prompt === o.stylePrompt);
+  const instruction = o.polishPrompt || (index >= 0 ? presets[index] : o.stylePrompt);
+  const language = names[target] || target;
+  return `Rewrite the translation in ${language}. The output language MUST remain ${language}; language takes priority over all style requests. Do not translate back into the source language. Preserve facts, numbers, negation and meaning. Output only the rewritten translation, without explanation.\n\nStyle requirements (change wording only, never the output language):\n${instruction}\n\nSource for checking meaning only:\n${text}\n\n${language} translation to rewrite:\n${previous}\n\nOutput the final translation in ${language} only:`;
 }
-module.exports = { defaultStyles, validateStyles, translationOptions, buildPrompt, buildRewritePrompt };
+// This guard detects clear script mismatches, not distinctions between Latin-script languages.
+function matchesTargetLanguage(text, target) {
+  const count = pattern => (text.match(pattern) || []).length;
+  const han = count(/\p{Script=Han}/gu), kana = count(/[\p{Script=Hiragana}\p{Script=Katakana}]/gu), hangul = count(/\p{Script=Hangul}/gu), latin = count(/\p{Script=Latin}/gu);
+  const cjk = han + kana + hangul;
+  if (['en', 'es', 'fr'].includes(target)) return !(cjk >= 2 && cjk > latin * .5);
+  if (target === 'zh' && (kana + hangul > han || (!han && latin >= 8 && /\s/.test(text.trim())))) return false;
+  if (target === 'ja' && (hangul > han + kana || (!han && !kana && latin >= 8 && /\s/.test(text.trim())))) return false;
+  if (target === 'ko' && ((han + kana >= 2 && !hangul) || (!hangul && latin >= 8 && /\s/.test(text.trim())))) return false;
+  return true;
+}
+
+module.exports = { defaultStyles, validateStyles, translationOptions, buildPrompt, buildRewritePrompt, matchesTargetLanguage };

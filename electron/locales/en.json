@@ -482,5 +482,20 @@
   "润色译文": "Polish translation",
   "请先选择混元 AI 作为句子翻译方案。": "Select Hunyuan AI for sentence translation first.",
   "请先下载混元 AI 翻译模型。": "Download the Hunyuan AI model first.",
-  "不开启句子翻译": "Keep sentence translation off"
+  "不开启句子翻译": "Keep sentence translation off",
+  "按下组合键…": "Press a key combination…",
+  "正在准备录制…": "Preparing to record…",
+  "正在录制，Esc 撤销，Tab 结束。": "Recording. Esc to undo, Tab to finish.",
+  "正在检查快捷键…": "Checking shortcut…",
+  "已用于其他功能，请换一个组合。": "Already assigned to another action. Choose a different combination.",
+  "请使用修饰键加字母、数字或 F1–F24。": "Use a modifier plus a letter, digit, or F1–F24.",
+  "这是系统或窗口保留的组合，请换一个快捷键。": "This combination is reserved. Choose a different shortcut.",
+  "当前系统请使用 Ctrl、Alt、Shift 或 Win。": "Use Ctrl, Alt, Shift, or Win on this system.",
+  "请先激活快捷键输入框。": "Focus a shortcut field first.",
+  "快捷键录制状态无效。": "Invalid shortcut recording state.",
+  "快捷键格式无效。": "Invalid shortcut format.",
+  "一次只能设置一个字母、数字或功能键。": "Use only one letter, digit, or function key at a time.",
+  "模型未返回目标语言的译文，请重新翻译。": "The model did not return the requested language. Translate again.",
+  "风格或润色结果语言有误，已保留原目标语言译文。": "The style or polish changed the output language. The original translation has been kept.",
+  "继续输入，或按 {shortcut} 立即翻译。": "Keep typing, or press {shortcut} to translate now."
 }
