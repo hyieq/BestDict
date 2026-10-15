@@ -54,6 +54,7 @@ export default function ResourceCenter({ t, translationEngine, onTranslationChan
     setSelected([]);
   }
   return <section className="resource-center" data-testid="resource-center">
+    {!!catalog?.entries.some(entry => ['argos', 'hy-mt2'].includes(entry.id) && entry.ready) && <label className="resource-activation sentence-preference"><input type="radio" name="sentence-engine" checked={translationEngine === 'none'} onChange={() => onTranslationChange('none')} />{t('不开启句子翻译')}</label>}
     <div className="resource-toolbar">
       <span>{t('勾选可批量下载')}</span>
       {!!selected.length && <button className="small-download" disabled={!!busy} onClick={() => void enqueue(selected)}><Download size={13} />{t('下载所选')} ({selected.length} · {size((catalog?.entries || []).filter(entry => selected.includes(entry.id)).reduce((sum, entry) => sum + entry.bytes, 0))})</button>}
@@ -79,7 +80,7 @@ export default function ResourceCenter({ t, translationEngine, onTranslationChan
               entry.ready && <Check size={16} className="resource-ready" />}
         </div>
         {entry.id === 'multi-dictionaries' && <p className="resource-languages">{t('西班牙语、日语、韩语、法语 → 中文')}</p>}
-        {entry.id === 'argos' && entry.ready && <div className="setting-row resource-enable"><label htmlFor="basic-sentence">{t('自动翻译中英句子')}</label><input id="basic-sentence" className="switch" type="checkbox" checked={translationEngine === 'argos'} onChange={e => onTranslationChange(e.target.checked ? 'argos' : 'none')} /></div>}
+        {['argos', 'hy-mt2'].includes(entry.id) && entry.ready && <label className="resource-activation"><input type="radio" name="sentence-engine" checked={translationEngine === (entry.id === 'argos' ? 'argos' : 'hy')} onChange={() => onTranslationChange(entry.id === 'argos' ? 'argos' : 'hy')} />{t(translationEngine === (entry.id === 'argos' ? 'argos' : 'hy') ? '当前句子翻译方案' : '用作句子翻译')}</label>}
         {running && <div className="download-status" role="status"><span>{t(job.message || '正在下载…')}{percent !== null && job.phase === 'downloading' && ' · ' + percent.toFixed(0) + '%'}</span>{percent !== null && job.phase === 'downloading' && <progress value={percent} max={100} />}</div>}
         {job?.state === 'error' && <p className="error-banner" role="alert">{t(job.message || '下载失败，请重试。')}</p>}
         {!unsupported && <details className="resource-details"><summary>{t(entry.ready ? '管理与详情' : '下载选项与详情')}</summary>

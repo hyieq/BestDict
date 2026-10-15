@@ -27,7 +27,7 @@ try {
   const automatic = page.getByRole('button', { name: '自动', exact: true });
   await input.fill('apple');
   await page.getByTestId('entry-word').filter({ hasText: 'apple' }).waitFor();
-  await page.getByRole('button', { name: '翻译', exact: false }).filter({ has: page.locator('span', { hasText: 'Ctrl' }) }).click();
+  await page.getByRole('button', { name: '翻译', exact: true }).click();
   await page.getByTestId('translation-result').waitFor();
   assert.equal(await automatic.getAttribute('aria-pressed'), 'true');
   await input.fill('banana');

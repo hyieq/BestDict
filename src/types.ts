@@ -15,7 +15,7 @@ export interface Settings {
   locale: 'zh-CN' | 'en'; traySettingsAvailable: boolean; captureAvailable: boolean;
   startup: boolean; shortcut: string; theme: 'system' | 'light' | 'dark';
   shortcutError: string; startupAvailable: boolean;
-  dictionaryId: string; autoDictionary: boolean; translationEngine: 'none' | 'argos'; translationNoticeDismissed: boolean;
+  dictionaryId: string; autoDictionary: boolean; translationEngine: 'none' | 'argos' | 'hy'; translationNoticeDismissed: boolean;
 }
 export interface Status { version: string; dictionaryCount: number; modelReady: boolean; error: string; shortcutError: string; dictionaryName: string; engine: string }
 export interface UpdateStatus { state: 'latest' | 'available' | 'unavailable' | 'unpublished'; currentVersion: string; latestVersion: string | null }
@@ -67,9 +67,7 @@ export interface DesktopAPI {
   getAppearance(): Promise<{ material: 'acrylic' | 'fallback' | 'solid'; dark: boolean; reducedTransparency: boolean }>;
   onAppearance(callback: (appearance: { material: 'acrylic' | 'fallback' | 'solid'; dark: boolean; reducedTransparency: boolean }) => void): () => void;
   lookup(text: string): Promise<LookupResult>;
-  translate(text: string, direction: Direction, requestId: number): Promise<Translation>;
-  translateAI(text: string, direction: Direction, requestId: number, options?: AIOptions): Promise<Translation>;
-  cancelAITranslation(): Promise<void>;
+  translate(text: string, direction: Direction, requestId: number, options?: AIOptions): Promise<Translation>;
   cancelTranslation(): Promise<void>;
   status(): Promise<Status>;
   checkForUpdates(): Promise<UpdateStatus>;

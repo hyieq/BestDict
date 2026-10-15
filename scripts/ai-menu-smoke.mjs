@@ -8,6 +8,9 @@ const desktop = await electron.launch({ executablePath, args: [...(executablePat
 try {
   const page = await desktop.firstWindow();
   await page.getByText('离线资源已就绪').waitFor();
+  await desktop.evaluate(() => { const { resources } = globalThis.__bestdictNative.getServices(); resources.hyStatus = () => ({ ready: true }); });
+  await page.evaluate(() => window.bestdict.setSettings({ translationEngine: 'hy' }));
+  await page.reload();
   const trigger = page.getByRole('button', { name: '翻译风格', exact: true });
   const menu = page.getByRole('menu', { name: '翻译风格', exact: true });
   async function checkPosition() {

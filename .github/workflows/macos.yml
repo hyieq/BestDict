@@ -80,6 +80,7 @@ jobs:
           failed=0
           node scripts/ci-command.mjs desktop npm run test:desktop || failed=1
           node scripts/ci-command.mjs query-mode npm run test:query-mode || failed=1
+          node scripts/ci-command.mjs translation-ui npm run test:translation-ui || failed=1
           node scripts/ci-command.mjs ai-styles npm run test:ai-styles || failed=1
           node scripts/ci-command.mjs ai-menu npm run test:ai-menu || failed=1
           node scripts/ci-command.mjs speech npm run test:speech || failed=1

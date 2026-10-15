@@ -9,17 +9,17 @@ export function isSentence(text) {
 
 export function basicDirection(text, direction = 'auto') {
   if (direction !== 'auto') {
-    if (!['en-zh', 'zh-en'].includes(direction)) throw new Error('基础翻译仅支持中英双向，请使用 AI 翻译。');
+    if (!['en-zh', 'zh-en'].includes(direction)) throw new Error('基础翻译仅支持中英双向，请使用 混元 AI 翻译。');
     return direction;
   }
   if (/[\u3040-\u30ff\uac00-\ud7af]/u.test(text) || /[\p{Letter}&&[^\p{Script=Latin}]]/v.test(text.replace(/[\u3400-\u9fff]/gu, ''))) {
-    throw new Error('基础翻译暂不支持此语言，请使用 AI 翻译。');
+    throw new Error('基础翻译暂不支持此语言，请使用 混元 AI 翻译。');
   }
   const words = text.toLowerCase().match(/\p{Script=Latin}+/gu) || [];
   const french = new Set(['bonjour', 'merci', 'vous', 'nous', 'comment', 'allez', 'avec', 'une', 'est', 'les', 'des']);
   const spanish = new Set(['hola', 'gracias', 'como', 'cómo', 'estás', 'usted', 'nosotros', 'quiero', 'buenos', 'días', 'por', 'favor']);
   if ([french, spanish].some(markers => new Set(words.filter(word => markers.has(word))).size >= 2)) {
-    throw new Error('基础翻译暂不支持此语言，请使用 AI 翻译。');
+    throw new Error('基础翻译暂不支持此语言，请使用 混元 AI 翻译。');
   }
   return /[\u3400-\u9fff]/u.test(text) ? 'zh-en' : 'en-zh';
 }

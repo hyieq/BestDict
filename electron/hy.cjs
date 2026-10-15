@@ -34,7 +34,7 @@ class HyTranslator {
   async start() {
     if (this.starting) return this.starting;
     if (this.process) return;
-    if (!this.isReady()) throw new Error('请先在设置 → 翻译引擎中下载或导入 Hy-MT2。');
+    if (!this.isReady()) throw new Error('请先在设置 → 模型与词库中下载或导入 Hy-MT2。');
     const generation = ++this.generation;
     this.starting = this.boot(generation).finally(() => { if (generation === this.generation) this.starting = null; });
     return this.starting;

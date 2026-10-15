@@ -468,5 +468,19 @@
   "下载连接超时。": "The download connection timed out.",
   "下载断点不匹配。": "The download range does not match.",
   "请先在设置 → 模型与词库中下载 OCR 模型。": "Download OCR models in Settings → Models & dictionaries first.",
-  "CPU 本地运行，推荐至少 8 GB 内存。": "Runs locally on the CPU; at least 8 GB of RAM is recommended."
+  "CPU 本地运行，推荐至少 8 GB 内存。": "Runs locally on the CPU; at least 8 GB of RAM is recommended.",
+  "句子翻译方案": "Sentence translation",
+  "混元 AI": "Hunyuan AI",
+  "基础翻译": "Basic translation",
+  "当前句子翻译方案": "Active sentence translator",
+  "用作句子翻译": "Use for sentence translation",
+  "选择翻译方案": "Select translator",
+  "管理模型…": "Manage models…",
+  "取消翻译": "Cancel translation",
+  "句子翻译尚未开启": "Sentence translation is not enabled",
+  "选择或下载翻译模型": "Select or download a model",
+  "润色译文": "Polish translation",
+  "请先选择混元 AI 作为句子翻译方案。": "Select Hunyuan AI for sentence translation first.",
+  "请先下载混元 AI 翻译模型。": "Download the Hunyuan AI model first.",
+  "不开启句子翻译": "Keep sentence translation off"
 }

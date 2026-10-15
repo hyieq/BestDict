@@ -48,9 +48,7 @@ contextBridge.exposeInMainWorld('bestdict', {
     return () => ipcRenderer.removeListener('window:appearance', listener);
   },
   lookup: text => ipcRenderer.invoke('dictionary:lookup', text),
-  translate: (text, direction, requestId) => ipcRenderer.invoke('translation:run', { text, direction, requestId }),
-  translateAI: (text, direction, requestId, options) => ipcRenderer.invoke('translation:ai', { text, direction, requestId, options }),
-  cancelAITranslation: () => ipcRenderer.invoke('translation:ai-cancel'),
+  translate: (text, direction, requestId, options) => ipcRenderer.invoke('translation:run', { text, direction, requestId, options }),
   cancelTranslation: () => ipcRenderer.invoke('translation:cancel'),
   status: () => ipcRenderer.invoke('app:status'),
   checkForUpdates: () => ipcRenderer.invoke('updates:check'),

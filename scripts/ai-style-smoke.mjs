@@ -20,6 +20,7 @@ try {
       return { text: options.polishPrompt ? '请周五前发我报告，谢谢！' : '请在星期五之前将报告发给我。', direction: 'en-zh', engine: 'Hy-MT2', cached: false };
     };
   });
+  await page.evaluate(() => window.bestdict.setSettings({ translationEngine: 'hy' }));
   await page.reload();
   const style = page.getByRole('button', { name: '翻译风格', exact: true });
   async function selectStyle(id) {
@@ -46,11 +47,11 @@ try {
   await page.reload();
   await page.waitForFunction(() => document.querySelector('.ai-style-select')?.textContent.includes('新闻'));
   await page.getByRole('textbox', { name: '输入单词或句子' }).fill('Please send me the report before Friday.');
-  await page.getByRole('button', { name: 'AI 翻译', exact: true }).click();
-  await page.getByTestId('ai-translation-result').waitFor();
+  await page.getByTestId('translation-result').waitFor();
+  await page.getByText('润色译文', { exact: true }).click();
   await page.getByRole('textbox', { name: '自定义润色提示词' }).fill('更像聊天，简短一点');
   await page.getByRole('button', { name: '润色并刷新' }).click();
-  await page.getByTestId('ai-translation-result').filter({ hasText: '谢谢' }).waitFor();
+  await page.getByTestId('translation-result').filter({ hasText: '谢谢' }).waitFor();
   const calls = await desktop.evaluate(() => globalThis.__aiCalls);
   assert.equal(calls[0].options.styleName, '新闻');
   assert.equal(calls[1].options.previousText, '请在星期五之前将报告发给我。');
@@ -59,7 +60,7 @@ try {
   await page.screenshot({ path: path.resolve('test-results/ai-styles.png') });
   await selectStyle('professional');
   await page.waitForFunction(() => document.querySelector('.ai-style-select')?.textContent.includes('专业'));
-  await page.getByTestId('ai-translation-result').filter({ hasText: '星期五' }).waitFor();
+  await page.getByTestId('translation-result').filter({ hasText: '星期五' }).waitFor();
   const changed = await desktop.evaluate(() => globalThis.__aiCalls.at(-1));
   assert.equal(changed.options.styleName, '专业');
   assert.equal(changed.options.forceRefresh, true);
@@ -68,7 +69,7 @@ try {
   await page.getByRole('textbox', { name: '自定义润色提示词' }).fill('fail');
   await page.getByRole('button', { name: '润色并刷新' }).click();
   await page.getByRole('alert').filter({ hasText: '测试失败' }).waitFor();
-  assert.match(await page.getByTestId('ai-translation-result').innerText(), /星期五/);
+  assert.match(await page.getByTestId('translation-result').innerText(), /星期五/);
   await page.evaluate(() => window.bestdict.setSettings({ theme: 'dark' }));
   await page.reload();
   await page.locator('html[data-theme="dark"]').waitFor();

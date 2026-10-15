@@ -240,6 +240,15 @@ function rememberBounds() {
   try { saveSettings({ ...settings, [miniMode ? 'miniBounds' : 'bounds']: window.getBounds() }); } catch (error) { console.error(error); }
 }
 
+function activateFirstTranslation(id) {
+  if (settings.translationEngine !== 'none' || settings.sentenceConfigured || settings.argosConfigured) return;
+  const engine = id === 'argos' && resources.argosStatus().ready ? 'argos' : id === 'hy-mt2' && resources.hyStatus().ready ? 'hy' : null;
+  if (engine) {
+    saveSettings({ ...settings, translationEngine: engine, argosConfigured: true, sentenceConfigured: true });
+    capture?.publish({ engines: capture.engines() });
+  }
+}
+
 function setupIPC() {
   handle('ocr:status', () => ocr.status());
   handle('ocr:install', () => { if (downloads.active) throw new Error('请先暂停下载或安装。'); return ocr.install(); });
@@ -274,23 +283,20 @@ function setupIPC() {
     const result = await dictionary.request('lookup', { text, database: resources.database(preferred) }, { timeout: 15_000 });
     return { ...result, dictionaryId: preferred, entries: result.entries.map(entry => ({ ...entry, dictionaryId: preferred })) };
   });
-  handle('translation:run', ({ text, direction, requestId }) => {
+  handle('translation:run', ({ text, direction, requestId, options }) => {
     validateText(text, 5000);
     if (!['auto', 'en-zh', 'zh-en', 'es-zh', 'zh-es', 'ja-zh', 'zh-ja', 'ko-zh', 'zh-ko', 'fr-zh', 'zh-fr'].includes(direction) || !Number.isSafeInteger(requestId)) throw new Error('无效的翻译请求。');
     if (settings.translationEngine === 'none') throw new Error('整句翻译尚未开启，请在设置中下载并启用翻译模型。');
+    if (settings.translationEngine === 'hy') {
+      const style = settings.aiStyles.find(item => item.id === settings.aiStyleId);
+      return hy.translate(text, direction, 'en', translationOptions({ styleName: style?.name, stylePrompt: style?.prompt, ...options }));
+    }
     const route = basicDirection(text, direction);
     // Only the newest request can consume inference time; obsolete work is terminated.
     if (translator.pending.size) translator.stop();
     return translator.request('translate', { text, direction: route }).then(result => ({ ...result, engine: 'Argos Translate' }));
   });
-  handle('translation:cancel', () => { if (translator.pending.size) translator.stop(); });
-  handle('translation:ai', ({ text, direction, requestId, options }) => {
-    validateText(text, 5000);
-    if (!['auto', 'en-zh', 'zh-en', 'es-zh', 'zh-es', 'ja-zh', 'zh-ja', 'ko-zh', 'zh-ko', 'fr-zh', 'zh-fr'].includes(direction) || !Number.isSafeInteger(requestId)) throw new Error('无效的翻译请求。');
-    if (!resources.hyStatus().ready) throw new Error('请先下载或导入 Hy-MT2 模型。');
-    return hy.translate(text, direction, 'en', translationOptions(options));
-  });
-  handle('translation:ai-cancel', () => hy.cancel());
+  handle('translation:cancel', () => { if (translator.pending.size) translator.stop(); hy.cancel(); });
   handle('clipboard:copy', text => { clipboard.writeText(validateText(text, 20000)); return true; });
   handle('settings:get', publicSettings);
   handle('settings:set', changes => {
@@ -325,11 +331,11 @@ function setupIPC() {
       next.dictionaryId = changes.dictionaryId;
     }
     if ('translationEngine' in changes) {
-      if (changes.translationEngine === 'hy') throw new Error('Hy-MT2 请通过主界面的 AI 翻译按钮使用。');
-      if (!['none', 'argos'].includes(changes.translationEngine)) throw new Error('翻译引擎无效。');
+      if (!['none', 'argos', 'hy'].includes(changes.translationEngine)) throw new Error('翻译引擎无效。');
       if (changes.translationEngine === 'argos' && !resources.argosStatus().ready) throw new Error('请先下载 Argos 中英模型。');
+      if (changes.translationEngine === 'hy' && !resources.hyStatus().ready) throw new Error('请先下载混元 AI 翻译模型。');
       next.translationEngine = changes.translationEngine;
-      if (resources.argosStatus().ready || next.translationEngine !== settings.translationEngine) next.argosConfigured = true;
+      if (resources.argosStatus().ready || resources.hyStatus().ready || next.translationEngine !== settings.translationEngine) { next.argosConfigured = true; next.sentenceConfigured = true; }
     }
     for (const key of ['miniHideOnBlur', 'miniRememberPosition']) {
       if (key in changes) {
@@ -359,8 +365,10 @@ function setupIPC() {
     if (app.isPackaged && ['win32', 'darwin'].includes(process.platform) && !testing && next.startup !== settings.startup) {
       app.setLoginItemSettings({ openAtLogin: next.startup, path: process.execPath, name: 'BestDict', args: ['--hidden'] });
     }
-    if (next.translationEngine !== settings.translationEngine) translator.stop();
+    const changedEngine = next.translationEngine !== settings.translationEngine;
+    if (changedEngine) { translator.stop(); hy.cancel(); capture?.cancelWork(); }
     saveSettings(next);
+    if (changedEngine) capture?.publish({ engines: capture.engines() });
     if ('speech' in changes) { speechSessions.cancel(); stopSpeechPlayers(); updateSpeechStandby(); }
     if ('theme' in changes) {
       nativeTheme.themeSource = settings.theme;
@@ -374,7 +382,7 @@ function setupIPC() {
     const [dict] = await Promise.allSettled([dictionary.request('status', { database: resources.database(current.dictionaryId) })]);
     return {
       version: app.getVersion(), dictionaryCount: dict.status === 'fulfilled' ? dict.value.count : 0,
-      modelReady: current.translationEngine === 'argos' && resources.argosStatus().ready,
+      modelReady: current.translationEngine === 'hy' ? resources.hyStatus().ready : current.translationEngine === 'argos' && resources.argosStatus().ready,
       dictionaryName: resources.list().find(item => item.id === current.dictionaryId)?.name || '英语 ↔ 中文',
       engine: current.translationEngine,
       error: dict.status === 'rejected' ? dict.reason.message : '',
@@ -436,7 +444,12 @@ function setupIPC() {
     if (id === 'ocr') { capture.cancelWork(); await ocr.uninstall(); }
     else {
       if (id === 'hy-mt2') hy.stop();
-      if (id === 'argos') { translator.stop(); saveSettings({ ...settings, translationEngine: 'none', argosConfigured: true }); }
+      if (id === 'argos') translator.stop();
+      if ((id === 'argos' && settings.translationEngine === 'argos') || (id === 'hy-mt2' && settings.translationEngine === 'hy')) {
+        capture?.cancelWork();
+        saveSettings({ ...settings, translationEngine: 'none', argosConfigured: true, sentenceConfigured: true });
+        capture?.publish({ engines: capture.engines() });
+      }
       if (id === 'kokoro') { await speech.suspend(); speechSessions.current = null; stopSpeechPlayers();
         if (settings.speech.engine === 'kokoro') saveSettings({ ...settings, speech: { ...settings.speech, engine: 'auto' } }); }
       if (id === 'multi-dictionaries') {
@@ -459,9 +472,7 @@ function setupIPC() {
     let result;
     try { result = await resources.install(id, source, { replace: id === 'multi-dictionaries' && !!source }); }
     finally { if (id === 'kokoro') { speech.suspended = false; updateSpeechStandby(); } }
-    if (id === 'argos' && result && resources.argosStatus().ready && !settings.argosConfigured) {
-      saveSettings({ ...settings, translationEngine: 'argos', argosConfigured: true });
-    }
+    if (result) activateFirstTranslation(id);
     return result;
   }
   handle('resources:download', id => { if (downloads.active) throw new Error('请先暂停下载或安装。'); return installResource(id); });
@@ -513,10 +524,9 @@ else {
     translator = new WorkerClient(python, path.join(root, 'backend', 'worker.py'), resources.argosRoot(), 'translation');
     speech = new SpeechService({ python, backend: path.join(root, 'backend'), resources, cacheDirectory: path.join(app.getPath('userData'), 'speech-cache') });
     speechSessions = new SpeechSessions({ cancel: cancelSpeech, notify: stopSpeechPlayers });
-    // Migrate the old global HY selection to the independent manual AI feature.
-    if (settings.translationEngine === 'hy') settings.translationEngine = resources.argosStatus().ready ? 'argos' : 'none';
-    if (!['none', 'argos'].includes(settings.translationEngine) ||
-      (settings.translationEngine === 'argos' && !resources.argosStatus().ready)) settings.translationEngine = 'none';
+    if (!['none', 'argos', 'hy'].includes(settings.translationEngine) ||
+      (settings.translationEngine === 'argos' && !resources.argosStatus().ready) ||
+      (settings.translationEngine === 'hy' && !resources.hyStatus().ready)) settings.translationEngine = 'none';
     if (!resources.list().some(item => item.id === settings.dictionaryId && item.installed)) settings.dictionaryId = 'ecdict';
     hy = new HyTranslator({ executable: path.join(root, app.isPackaged ? 'llama' : 'runtime/llama', process.platform === 'win32' ? 'llama-server.exe' : 'llama-server'),
       modelFile: () => resources.modelFile(), isReady: () => resources.hyStatus().ready });
@@ -549,7 +559,7 @@ else {
     captureHy = new HyTranslator({ executable: hy.executable, modelFile: () => resources.modelFile(), isReady: () => resources.hyStatus().ready });
     capture = new CaptureService({ ocr, settings: () => settings,
       url: () => process.env.BESTDICT_DEV_URL && !app.isPackaged ? process.env.BESTDICT_DEV_URL : 'bestdict://app/index.html',
-      engines: () => ({ hy: resources.hyStatus().ready, argos: settings.translationEngine === 'argos' && resources.argosStatus().ready }),
+      engines: () => ({ hy: settings.translationEngine === 'hy' && resources.hyStatus().ready, argos: settings.translationEngine === 'argos' && resources.argosStatus().ready }),
       hideMain: () => { const visible = window.isVisible(); const mini = miniMode; window.hide(); return () => { if (visible) showMode(mini); }; },
       openMain: (text, openSettings) => { reveal(); window.webContents.send('capture:open-main', { text, settings: !!openSettings, tab: openSettings || undefined }); },
       speak: (text, language, requestId, sender) => speechSessions.start(sender, requestId, options => speech.synthesize(text, language, settings.speech, options)),
@@ -557,8 +567,8 @@ else {
       onActivity: updateSpeechStandby,
       cancelTranslation: () => { captureTranslator.stop(); captureHy.cancel(); },
       runTranslation: async (text, direction, engine) => {
-        if (engine === 'hy' || (engine === 'auto' && resources.hyStatus().ready)) return captureHy.translate(text, direction, 'en');
-        if (settings.translationEngine !== 'argos' || !resources.argosStatus().ready) throw new Error('请先在设置中下载并启用翻译模型。');
+        if (settings.translationEngine === 'hy' && (engine === 'hy' || engine === 'auto')) return captureHy.translate(text, direction, 'en');
+        if (engine === 'hy' || settings.translationEngine !== 'argos' || !resources.argosStatus().ready) throw new Error('请先在设置中下载并启用翻译模型。');
         const result = await captureTranslator.request('translate', { text, direction: basicDirection(text, direction) });
         return { ...result, engine: 'Argos Translate' };
       },
@@ -576,8 +586,7 @@ else {
         try {
           signal.throwIfAborted();
           const result = await resources.install(id, source);
-          if (id === 'argos' && result && resources.argosStatus().ready && !settings.argosConfigured)
-            saveSettings({ ...settings, translationEngine: 'argos', argosConfigured: true });
+          if (result) activateFirstTranslation(id);
           return result;
         } finally { if (id === 'kokoro') { speech.suspended = false; updateSpeechStandby(); } }
       } });

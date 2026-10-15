@@ -73,12 +73,12 @@ function Result({ state, t }: { state: State; t: (s: string) => string }) {
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [direction, setDirection] = useState('auto');
-  const [engine, setEngine] = useState('auto');
   const [pinned, setPinned] = useState(true);
   const speech = useSpeech(speechTransport);
   const speaking = speech.active !== null;
   const revision = useRef(0);
   const autoStarted = useRef(false);
+  const provider = useRef(`${!!state.engines?.hy}:${!!state.engines?.argos}`);
   const recognizing = state.phase === 'recognizing';
   const hasEngine = state.engines?.hy || state.engines?.argos;
   const stopSpeech = speech.stop;
@@ -86,13 +86,19 @@ function Result({ state, t }: { state: State; t: (s: string) => string }) {
   async function run(source = text) {
     const current = ++revision.current;
     stopSpeech(); setBusy(true); setError(''); setTranslation(null);
-    try { const result = await api.translate(source, direction, engine); if (revision.current === current) setTranslation(result); }
+    try { const result = await api.translate(source, direction, 'auto'); if (revision.current === current) setTranslation(result); }
     catch (e) { if (revision.current === current) setError(message(e)); }
     finally { if (revision.current === current) setBusy(false); }
   }
   useEffect(() => {
-    if (state.text === undefined) return;
-    setText(state.text);
+    const next = `${!!state.engines?.hy}:${!!state.engines?.argos}`;
+    if (provider.current === next) return;
+    provider.current = next;
+    cancel(); setTranslation(null);
+    if (hasEngine && text.trim()) { autoStarted.current = true; void run(text); }
+  }, [state.engines?.hy, state.engines?.argos]);
+  useEffect(() => { if (state.text !== undefined) setText(state.text); }, [state.text]);
+  useEffect(() => {
     if (state.text && !autoStarted.current && hasEngine) { autoStarted.current = true; void run(state.text); }
   }, [state.text, hasEngine]);
   useEffect(() => {
@@ -115,7 +121,7 @@ function Result({ state, t }: { state: State; t: (s: string) => string }) {
     </div></header>
     <div className="capture-content">
       <div className="capture-toolbar"><select aria-label={t('翻译方向')} value={direction} onChange={e => { cancel(); setTranslation(null); setDirection(e.target.value); }}><option value="auto">{t('自动识别')}</option><option value="en-zh">English → 中文</option><option value="zh-en">中文 → English</option></select>
-        <select aria-label={t('翻译引擎')} value={engine} onChange={e => { cancel(); setTranslation(null); setEngine(e.target.value); }}><option value="auto">{t('自动（优先 HY）')}</option>{state.engines?.hy && <option value="hy">HY-MT2</option>}{state.engines?.argos && <option value="argos">Argos</option>}</select></div>
+        <span>{state.engines?.hy ? t('混元 AI') : state.engines?.argos ? t('基础翻译') : t('未开启')}</span></div>
       <details className="capture-preview"><summary>{t('查看截图')}</summary><img src={state.image} alt={t('截图选区')} /></details>
       <section className="capture-source"><div className="capture-label"><label htmlFor="ocr-text">{t('原文 · 可编辑')}</label><button className="icon-button" disabled={!text} aria-label={t('复制原文')} onClick={() => void copy(text)}><Copy size={14} /></button></div>
         <textarea id="ocr-text" aria-label={t('识别原文')} maxLength={5000} value={text} disabled={recognizing} placeholder={recognizing ? t('正在识别文字…') : t('识别原文')} onChange={e => { cancel(); setTranslation(null); setNotice(''); setText(e.target.value); }} />

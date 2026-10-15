@@ -36,7 +36,7 @@ try {
   assert.equal(resources.hy.ready, false);
   assert.equal(resources.progress, null, 'No resource download runs at startup.');
   await assert.rejects(page.evaluate(() => window.bestdict.setSettings({ translationEngine: 'argos' })), /请先下载/);
-  await assert.rejects(page.evaluate(() => window.bestdict.setSettings({ translationEngine: 'hy' })), /AI 翻译/);
+  await assert.rejects(page.evaluate(() => window.bestdict.setSettings({ translationEngine: 'hy' })), /请先下载/);
   await assert.rejects(page.evaluate(() => window.bestdict.translate('Hello world.', 'en-zh', 1)), /尚未开启/);
   const input = page.getByRole('textbox', { name: '输入单词或句子' });
   assert.equal(await input.evaluate(element => element === document.activeElement), true);
@@ -61,7 +61,7 @@ try {
   await input.fill('Please send me the report before Friday.');
   await page.getByTestId('translation-disabled').waitFor();
   assert.equal(await page.getByRole('alert').count(), 0);
-  await page.getByRole('button', { name: '设置基础翻译', exact: true }).click();
+  await page.getByRole('button', { name: '选择或下载翻译模型', exact: true }).click();
   await page.getByTestId('resource-argos').getByText(/未安装/).waitFor();
   assert.equal(await page.getByTestId('resource-hy-mt2').getByText(/未安装/).count(), 1);
   assert.equal(await page.getByTestId('resource-argos').getByRole('button', { name: '导入本地文件', exact: true }).isVisible(), false);

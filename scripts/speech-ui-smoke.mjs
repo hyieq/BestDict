@@ -67,14 +67,14 @@ try {
   assert.equal(await page.evaluate(() => window.__played), 1, 'Changing query discards pending audio');
   await input.fill('Please send the report on Friday.');
   await page.getByTestId('translation-result').waitFor();
-  await page.getByRole('button', { name: 'AI 翻译', exact: true }).click();
-  const ai = page.getByTestId('ai-panel');
-  await page.getByTestId('ai-translation-result').waitFor();
   await basic.getByRole('button', { name: '播放发音' }).click();
   await release();
   await page.waitForFunction(() => window.__played === 2);
+  await page.getByRole('combobox', { name: '句子翻译方案', exact: true }).selectOption('hy');
+  const ai = page.locator('.translation-panel');
+  await ai.getByRole('button', { name: '播放发音' }).waitFor();
+  await page.getByTestId('translation-result').filter({ hasText: '之前' }).waitFor();
   await ai.getByRole('button', { name: '播放发音' }).click();
-  await basic.getByRole('button', { name: '播放发音' }).waitFor();
   await release();
   await page.waitForFunction(() => window.__played === 3);
   await page.getByRole('button', { name: '设置', exact: true }).click();

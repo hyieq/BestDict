@@ -92,6 +92,7 @@ try {
       const source = path.resolve('.cache/validation-library/hy-mt2', file);
       await link(source, path.join(target, file)).catch(() => copyFile(source, path.join(target, file)));
     }
+    await main.evaluate(() => window.bestdict.setSettings({ translationEngine: 'hy' }));
     // Use the original production route and the installed real model, without replacing inference.
     await result.reload();
     await result.getByRole('combobox', { name: '翻译方向' }).selectOption('en-zh');
@@ -116,6 +117,13 @@ try {
   await result.locator('#ocr-text').fill('A changed sentence.');
   assert.equal(await result.locator('.capture-translated').count(), 0);
   await result.getByRole('button', { name: '翻译', exact: true }).click();
+  await result.locator('.capture-translated').waitFor();
+  await desktop.evaluate(() => globalThis.__bestdictNative.getServices().capture.publish({ engines: { hy: false, argos: true } }));
+  await result.getByText('基础翻译', { exact: true }).waitFor();
+  await result.locator('.capture-translated').waitFor();
+  assert.equal(await result.locator('#ocr-text').inputValue(), 'A changed sentence.', 'Changing provider retains the edited OCR text.');
+  await desktop.evaluate(() => globalThis.__bestdictNative.getServices().capture.publish({ engines: { hy: true, argos: false } }));
+  await result.getByText('混元 AI', { exact: true }).waitFor();
   await result.locator('.capture-translated').waitFor();
   await result.getByRole('button', { name: '复制译文', exact: true }).click();
   assert.match(await desktop.evaluate(({ clipboard }) => clipboard.readText()), /你好/);
