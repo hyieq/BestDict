@@ -242,4 +242,28 @@ try {
   await mkdir('test-results/speech-stream', { recursive: true });
   await writeFile(`test-results/speech-stream/${selection ? 'real-selected' : long ? 'real-long' : real ? 'real' : 'fixture'}.json`, JSON.stringify(report, null, 2));
   console.log('Speech stream UI passed:', report);
+} catch (error) {
+  const evidence = { error: String(error) };
+  try {
+    const page = await desktop.firstWindow();
+    evidence.renderer = await page.evaluate(() => ({
+      visibility: document.visibilityState,
+      query: document.querySelector('.search-box textarea')?.value,
+      result: document.querySelector('[data-testid="translation-result"]')?.textContent,
+      speechButtons: Array.from(document.querySelectorAll('.translation-panel .speech-button')).map(node => ({ label: node.getAttribute('aria-label'), active: node.getAttribute('aria-pressed') })),
+      alerts: Array.from(document.querySelectorAll('[role="alert"]')).map(node => node.textContent),
+      playback: window.__streamPlayback && { schedules: window.__streamPlayback.schedules, starts: window.__streamPlayback.starts, clicks: window.__streamPlayback.clicks, ended: window.__streamPlayback.ended, fullPlays: window.__streamPlayback.fullPlays,
+        contexts: window.__streamPlayback.sources.map(source => ({ state: source.context.state, time: source.context.currentTime, duration: source.buffer?.duration })) },
+    }));
+    evidence.native = await desktop.evaluate(() => {
+      const { speech } = globalThis.__bestdictNative.getServices();
+      return { revision: speech.revision, aborted: speech.abort?.signal.aborted, workerPending: speech.worker.pending.size,
+        fixtureRequests: globalThis.__streamTest.pending.length, generations: globalThis.__streamTest.generations, completed: globalThis.__streamTest.completed };
+    });
+    await mkdir('test-results/speech-stream', { recursive: true });
+    await writeFile('test-results/speech-stream/failure.json', JSON.stringify(evidence, null, 2));
+    await page.screenshot({ path: 'test-results/speech-stream/failure.png' });
+  } catch (diagnosticError) { evidence.diagnosticError = String(diagnosticError); }
+  console.error('Speech stream failure evidence:', JSON.stringify(evidence));
+  throw error;
 } finally { await closeElectronTest(desktop); }
