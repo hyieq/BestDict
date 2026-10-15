@@ -134,6 +134,21 @@ try {
   assert.equal(await page.getByRole('button', { name: 'Full definition' }).evaluate(el => el.getBoundingClientRect().bottom <= innerHeight), true);
   await capture('zoom.png');
   assert.deepEqual(errors, []);
+  // A final resize can leave a pending bounds save when the native window closes.
+  // Keep the main process alive past the debounce to exercise that teardown race.
+  await desktop.evaluate(({ BrowserWindow }) => {
+    globalThis.__miniShutdownErrors = [];
+    process.on('uncaughtExceptionMonitor', error => {
+      console.error('Mini shutdown exception:', error.stack);
+      globalThis.__miniShutdownErrors.push(error.message);
+    });
+    const nativeWindow = BrowserWindow.getAllWindows()[0];
+    const bounds = nativeWindow.getBounds();
+    nativeWindow.setBounds({ ...bounds, width: bounds.width + 1 });
+    nativeWindow.destroy();
+  });
+  await new Promise(resolve => setTimeout(resolve, 650));
+  assert.deepEqual(await desktop.evaluate(() => globalThis.__miniShutdownErrors), []);
 } finally {
   await desktop.evaluate(({ app }) => {
     app.once('before-quit', () => console.log('Mini shutdown: before-quit'));

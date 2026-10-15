@@ -246,7 +246,7 @@ function windowBounds() {
 }
 
 function rememberBounds() {
-  if (!window || window.isMinimized() || window.isMaximized()) return;
+  if (!window || window.isDestroyed() || window.isMinimized() || window.isMaximized()) return;
   if (miniMode && !settings.miniRememberPosition) return;
   try { saveSettings({ ...settings, [miniMode ? 'miniBounds' : 'bounds']: window.getBounds() }); } catch (error) { console.error(error); }
 }
@@ -556,9 +556,10 @@ else {
     window.webContents.on('will-navigate', event => event.preventDefault());
     window.on('close', event => { if (!quitting) { event.preventDefault(); hideToTray(); } });
     for (const event of ['show', 'hide', 'minimize', 'restore', 'focus']) window.on(event, updateSpeechStandby);
-    window.on('blur', () => { if (miniMode && !miniPinned && settings.miniHideOnBlur && !switchingMode && !capture?.capturing) hideToTray(); });
+    window.on('blur', () => { if (!quitting && miniMode && !miniPinned && settings.miniHideOnBlur && !switchingMode && !capture?.capturing) hideToTray(); });
     let boundsTimer;
     for (const event of ['resize', 'move']) window.on(event, () => { clearTimeout(boundsTimer); boundsTimer = setTimeout(rememberBounds, 500); });
+    window.once('closed', () => clearTimeout(boundsTimer));
     ocr = new OCRService({ python, backend: path.join(root, 'backend'), assets, library: resources.library });
     captureTranslator = new WorkerClient(python, path.join(root, 'backend', 'worker.py'), resources.argosRoot(), 'translation');
     captureHy = new HyTranslator({ executable: hy.executable, modelFile: () => resources.modelFile(), isReady: () => resources.hyStatus().ready });
